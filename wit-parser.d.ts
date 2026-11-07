@@ -27,5 +27,9 @@ export declare function kebabToCamel(name: string): string;
 /** Convert kebab-case WIT import name to the underscore WASM import key. */
 export declare function kebabToWasmImportKey(name: string): string;
 
-/** Parse a WIT source string produced by wasmtk. */
+/**
+ * Parse a WIT source string in the subset wasmtk produces (SPEC 4.0.0 §2). Throws an `Error`
+ * naming the fault on anything else: a malformed statement or parameter, an unsupported type,
+ * a duplicate name, text outside the one `world`.
+ */
 export declare function parseWit(src: string): ParsedWit;

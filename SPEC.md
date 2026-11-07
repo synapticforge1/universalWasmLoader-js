@@ -1,9 +1,17 @@
 # Universal WASM Loader — Cross-Language Specification
 
-Version: 3.0.0  
+Version: 4.0.0  
 Status: Draft  
 Reference implementation: `@jrmarcum/universal-wasm-loader` (JSR)
 
+> **4.0.0 (2026-11-07) — loud failures, decided by the owner (workspace letter H29; divergences
+> S8, S9, S10).** Only an ABSENT `.wit` selects raw exports; every other `.wit` failure — an HTTP
+> error, a network error, a timeout, a parse error, an unsupported type — is an error (§2). A WIT
+> import with no host callback is refused at load (§4). Typed calls check their arguments and
+> never coerce (§4). Every http(s) fetch has a time limit, 30 s by default, and loads take an
+> optional `options` argument (§1, §11). Each of these refuses something 3.0.0 accepted, hence
+> the major. Fixtures are unchanged.
+>
 > **3.0.0 (2026-06-15) — breaking ABI change.** String/aggregate returns moved from the old
 > caller-allocated out-parameter convention to the Canonical ABI **callee-allocated** convention:
 > the export returns an `i32` pointer to a callee-allocated `[ptr, len]` pair, paired with a
@@ -17,7 +25,7 @@ Reference implementation: `@jrmarcum/universal-wasm-loader` (JSR)
 Every conformant loader MUST export a single entry point called `wasmImport` (or the idiomatic equivalent in the target language) with the following logical signature:
 
 ```
-wasmImport(wasmPath, hostCallbacks?) → Promise<ModuleExports>
+wasmImport(wasmPath, hostCallbacks?, options?) → Promise<ModuleExports>
 ```
 
 ### Parameters
@@ -25,11 +33,13 @@ wasmImport(wasmPath, hostCallbacks?) → Promise<ModuleExports>
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `wasmPath` | string or URL | — | Path to the `.wasm` file, resolved relative to the calling module. Append `@N` to pin to a major version (see §3). |
-| `hostCallbacks` | `Record<string, Function>` | `{}` | Host functions the WASM module calls into JS. Flat object, camelCase keys. |
+| `hostCallbacks` | `Record<string, Function>` | `{}` | Host functions the WASM module calls into JS. Flat object, camelCase keys; one for every WIT `import` (§4). |
+| `options.timeoutMs` | number | `30000` | Time limit for each http(s) fetch (§11). |
+| `options.signal` | `AbortSignal` (or the idiomatic cancellation token) | none | Cancels the load (§11). |
 
 ### Return value
 
-A proxy object whose keys are the camelCase names of the WIT `export` section, with all Canonical ABI translation applied. If no companion `.wit` file is found, the loader MUST return raw `WebAssembly.Exports` instead.
+A proxy object whose keys are the camelCase names of the WIT `export` section, with all Canonical ABI translation applied. If no companion `.wit` file exists (§2), the loader MUST return raw `WebAssembly.Exports` instead.
 
 ### Usage patterns
 
@@ -54,13 +64,34 @@ m.greet("World")
 
 When the loader locates a companion `.wit` file, it applies the Canonical ABI. When no `.wit` file exists, raw `WebAssembly.Exports` are returned.
 
-Auto-detection replaces the `.wasm` suffix with `.wit` relative to `wasmPath`:
+Auto-detection replaces the `.wasm` suffix of the path with `.wit` relative to `wasmPath`; a URL's query and fragment are not carried over. A path that does not end in `.wasm` has no companion `.wit`, and the module loads as raw exports.
 
 ```
 ./math.wasm  →  ./math.wit
 ```
 
-If the `.wit` file cannot be fetched (e.g. 404 or network error), the loader MUST fall back to returning raw `WebAssembly.Exports` rather than throwing.
+### Absent versus failed (4.0.0)
+
+The `.wit` is **absent** — and the loader MUST return raw `WebAssembly.Exports` — only when:
+
+- the file does not exist (a local path or `file:` URL: "not found", e.g. `ENOENT`), or
+- an http(s) fetch answers **404** or **410**.
+
+Every other outcome of reading the `.wit` MUST make the load fail with an error naming the `.wit` URL and the reason, before the `.wasm` is fetched: any other HTTP status, a network error, the time limit (§11), cancellation, an unreadable file. A module never silently loses its typed interface because a server failed.
+
+### Parsing (4.0.0)
+
+A `.wit` that was read MUST parse completely, or the load fails with an error naming the `.wit` URL and what is wrong. The accepted form is the subset `wasmtk` writes:
+
+```
+wit      ::= ("package" name ";")? "world" ident "{" (func ";")* "}"
+func     ::= ("import" | "export") ident ":" "func" "(" (param ("," param)* ","?)? ")" ("->" type)?
+param    ::= ident ":" type
+type     ::= "s32" | "s64" | "f32" | "f64" | "bool" | "string"
+ident    ::= kebab-case word of letters and digits (e.g. is-positive, math-50, p0)
+```
+
+`//` line comments may appear anywhere. Anything else is an error, in particular: an empty file or text outside the one `world`; a statement that is not an `import` / `export` function; a parameter without `name: type`; a **type outside the table** (e.g. `u32`, `list<u8>` — never read as another type); a duplicate parameter, import or export name. After instantiation, a WIT `export` the module does not export MUST also fail the load, naming it.
 
 ---
 
@@ -108,6 +139,20 @@ For each WIT `export`:
 | `bool` | `value ? 1 : 0` | `result !== 0` |
 | `string` | `TextEncoder` → `cabi_realloc(0,0,1,len)` → write bytes → pass `(ptr, len)` | call the export → it returns an `i32` pointer to a callee-allocated `[ptr, len]` pair; read both via `DataView` (little-endian i32), decode, then call `cabi_post_<name>(retPtr)` |
 
+### Typed-call arguments (4.0.0)
+
+A typed call MUST check its arguments against the WIT signature before calling WASM, and MUST NOT coerce. A wrong argument count, or an argument outside its type's domain, fails the call with an error (in JS a `TypeError`) naming the export, the parameter and its WIT type:
+
+| WIT type | Accepted argument (JS) | Ports |
+|---|---|---|
+| `s32` | an integer `number` in [-2³¹, 2³¹ − 1] | the language's 32-bit integer; out of range is an error |
+| `s64` | a `bigint` in [-2⁶³, 2⁶³ − 1] | the 64-bit integer |
+| `f32`, `f64` | a `number` | the floating type |
+| `bool` | a `boolean` | the boolean type, never an integer |
+| `string` | a `string` | the string type; no conversion from other values |
+
+A port whose API returns a result through a kind-specific accessor (e.g. `call_i32`) MUST also refuse a kind that does not match the export's WIT result, never return a zero or empty value. Raw exports (no `.wit`) are outside this rule: they are the engine's own functions.
+
 ### Import wrapper (WASM → JS → WASM)
 
 For each WIT `import`, the loader builds a WASM-callable function registered under the `env` namespace using the underscore-converted name (e.g. WIT `env-mul` → WASM key `env_mul`). The user provides host callbacks under camelCase names (e.g. `envMul`):
@@ -119,6 +164,8 @@ For each WIT `import`, the loader builds a WASM-callable function registered und
 | `string` | read `(ptr, len)` pair from WASM call stack, decode with `TextDecoder` from linear memory |
 
 Return values from host callbacks follow the same encoding as export params in reverse.
+
+**Every WIT `import` MUST have a host callback (4.0.0).** A missing one fails the load — before instantiation, with an error naming every missing callback (its camelCase key and its WIT name) — never a default value returned when WASM calls it. Callbacks for names the `.wit` does not import are ignored.
 
 ---
 
@@ -186,13 +233,14 @@ Appropriate for servers and loop-intensive workloads. Distributing state across 
 
 A port of this loader to another language or runtime MUST:
 
-1. Accept the same logical signature: `wasmImport(wasmPath, hostCallbacks?)` (§1).
+1. Accept the same logical signature: `wasmImport(wasmPath, hostCallbacks?, options?)` (§1).
 2. Support both the destructure and namespace usage patterns (§1).
-3. Apply WIT auto-detection and fall back to raw exports when no `.wit` file is found (§2).
+3. Apply WIT auto-detection; fall back to raw exports only when the `.wit` is absent, and fail on every other `.wit` failure and on any `.wit` that does not parse (§2).
 4. Implement version pinning via the `@N` path suffix as specified (§3).
-5. Implement the Canonical ABI exactly as specified (§4, §5).
+5. Implement the Canonical ABI exactly as specified (§4, §5), including the argument checks and the host-callback rule.
 6. Expose `createSingleton` and `InstancePool` (or idiomatic equivalents) as specified (§6).
 7. Pass the reference test suite (§8) without modification to the fixture `.wasm` files.
+8. If it fetches over http(s): report an HTTP error as an error naming the status and URL, fetch each file once, and apply the time limit and cancellation of §11.
 
 ---
 
@@ -254,6 +302,22 @@ Using any available fixture:
 | `InstancePool.run()` | Returns correct result from pooled instance |
 | `InstancePool` with `size=2`, 2 concurrent `run()` calls | Both complete without error |
 
+### Refusals (4.0.0)
+
+Each MUST fail with an error (the message naming what the right-hand column names):
+
+| Scenario | Names |
+|---|---|
+| `imports_50` loaded with no host callbacks | both `envMul` and `envAdd` |
+| `imports_50` with only `envMul` | `envAdd` |
+| `add("x", 1)`, `add(2.7, 1)`, `add(1, 2 ** 31)`, `add(1)` on `math_50` | the export and the parameter (or the count) |
+| `greet(42)` on `strings_50`; `isEven("4")` on `booleans_50` | the export and the parameter |
+| `math_50.wasm` beside a `.wit` that does not parse (e.g. `func(a: s32 b: s32)`) or uses `u32` | the `.wit` and the fault |
+| over http: the `.wit` answers 500; the `.wasm` answers 404 or 500 | the URL and the status; one request per file |
+| over http: a server that never answers, with a short time limit | the URL and the limit |
+
+And over http, a `.wit` answering 404 or 410 loads `math_50` as raw exports (`add(3, 4)` = `7`).
+
 ---
 
 ## 9. Versioning
@@ -294,10 +358,31 @@ Whether a module can be loaded depends on its imports, not on whether it is "WAS
   `environ_get`/`environ_sizes_get`, `args_get`/`args_sizes_get`, and the `fd_*` stubs
   (`fd_close`/`fd_seek`/`fd_fdstat_get`). A pure-compute library needs none of these.
 
-This section is **informative** for v3.0.0. The WASI-P1 shim is currently OPTIONAL; a future spec
+This section is **informative** (since v3.0.0; unchanged in 4.0.0). The WASI-P1 shim is currently OPTIONAL; a future spec
 version may promote a minimal shim to a REQUIRED capability so every port can consume I/O-using
 libraries consistently. **The reference loader (`-js`) implements BOTH §10 capabilities as of
 2026-06-15:** it calls `_initialize` once after instantiation when the export is present, and always
 provides a minimal `wasi_snapshot_preview1` shim (the subset listed in §10.2; `fd_write` routes
 stdout→`console.log` / stderr→`console.error`). Pure-compute modules are unaffected (the unused import
 namespace is ignored). Other ports SHOULD follow.
+
+---
+
+## 11. Fetch Time Limit and Cancellation (4.0.0)
+
+Applies to every http(s) fetch the loader makes: the `.wit` (§2), then the `.wasm`. Local files
+are read without a limit.
+
+1. **Time limit.** Each fetch MUST complete — from the request to the last byte of the body —
+   within `options.timeoutMs` milliseconds, **default 30000**. A positive number; `Infinity` (or
+   the port's idiomatic "no limit") disables it; zero, a negative value or a non-number is an
+   error. When the limit passes, the load fails with an error naming the URL and the limit. A
+   port whose HTTP client separates connect and response phases MAY apply them separately
+   (e.g. 10 s connect / 30 s response, as loader-jvm does) as long as no fetch can wait longer
+   than its documented total without failing.
+2. **Cancellation.** `options.signal` (an `AbortSignal`, or the language's cancellation token)
+   cancels the load; the load fails with the signal's reason. An already-cancelled signal fails
+   the load before any fetch.
+3. **One request per file.** A fetch is never retried. An HTTP error on the `.wasm` fails the load
+   naming the status and URL; a compile or link error reaches the caller as it is.
+4. `createSingleton` and `InstancePool` accept the same `options` and apply them to each load.

@@ -15,10 +15,27 @@ export type HostCallbacks = Record<string, (...args: unknown[]) => unknown>;
 export type ModuleExports = Record<string, (...args: unknown[]) => unknown>;
 
 /**
+ * Options for loading a module (SPEC §11).
+ */
+export interface LoadOptions {
+  /**
+   * Time limit in milliseconds for EACH http(s) fetch (the `.wit`, then the `.wasm`), from the
+   * request to the last byte of the body. Default: 30000. `Infinity` disables it.
+   */
+  timeoutMs?: number;
+  /** Aborts the load; the load rejects with the signal's reason. */
+  signal?: AbortSignal;
+}
+
+/**
  * Load a `.wasm` file and return its ABI-translated exports.
  *
  * Auto-detects the companion `.wit` file and applies the Canonical ABI (wasmtime).
- * If no `.wit` file exists, raw `WebAssembly.Exports` are returned instead.
+ * If no `.wit` file exists (absent on disk, or HTTP 404 / 410), raw `WebAssembly.Exports` are
+ * returned instead. Any other `.wit` failure throws: an HTTP error, a network error, a timeout,
+ * a `.wit` that does not parse or names an unsupported type, a WIT export the module lacks, or a
+ * WIT import with no host callback. Typed calls check their arguments and throw a `TypeError` on
+ * a wrong count or kind.
  *
  * Append `@N` to the path to pin to a specific module version. The loader
  * verifies the module's exported `version` global matches `N` and throws if not,
@@ -35,13 +52,17 @@ export type ModuleExports = Record<string, (...args: unknown[]) => unknown>;
  * // Pin to a specific module version
  * const { greet } = await wasmImport("./mod.wasm@2");
  *
- * // With host import callbacks (flat, camelCase)
- * const { scale } = await wasmImport("./mod.wasm", { envMul: (a, b) => a * b });
+ * // With host import callbacks (flat, camelCase): one for every WIT import
+ * const { scale } = await wasmImport("./mod.wasm", { envMul: (a, b) => a * b, envAdd: (a, b) => a + b });
+ *
+ * // A 5 s limit per fetch instead of the default 30 s
+ * const m2 = await wasmImport("https://example.com/mod.wasm", {}, { timeoutMs: 5000 });
  * ```
  */
 export declare function wasmImport(
   wasmPath: string | URL,
   hostCallbacks?: HostCallbacks,
+  options?: LoadOptions,
 ): Promise<WebAssembly.Exports | ModuleExports>;
 
 /**
@@ -53,6 +74,7 @@ export declare function wasmImport(
 export declare function createSingleton(
   wasmPath: string | URL,
   hostCallbacks?: HostCallbacks,
+  options?: LoadOptions,
 ): () => Promise<WebAssembly.Exports | ModuleExports>;
 
 /**
@@ -67,8 +89,9 @@ export declare class InstancePool {
    * @param wasmPath Path to the `.wasm` file (optionally with an `@N` version-pin suffix).
    * @param hostCallbacks Optional flat, camelCase map of host import callbacks.
    * @param size Number of instances to pre-instantiate (defaults to 4).
+   * @param options Load options applied to every instance (SPEC §11).
    */
-  constructor(wasmPath: string | URL, hostCallbacks?: HostCallbacks, size?: number);
+  constructor(wasmPath: string | URL, hostCallbacks?: HostCallbacks, size?: number, options?: LoadOptions);
 
   /** Acquire an available instance. Waits if all are currently in use. */
   acquire(): Promise<WebAssembly.Exports | ModuleExports>;

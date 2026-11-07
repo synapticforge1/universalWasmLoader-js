@@ -20,7 +20,7 @@ Rules, not lessons (the lessons are [best-practices.md](best-practices.md)). The
   `bun run check`, `manifest`, `surface --check`, `fixtures`, `compat:selftest`, `compat`, `browser`, `test`, `npm:prove`,
   `lint`, `publish:dry` — plus the `runtimes` matrix (`bun run test:node` with a Node on PATH,
   `test:deno`; `bun run lts` for every Node LTS line). Run on the COMMITTED tree, after the last edit.
-- **Diff the output, not the exit code**: 28 tests on every runtime (2026-10-26; 24 from 2026-10-12); a lower count is a
+- **Diff the output, not the exit code**: 63 tests on every runtime (2026-11-07; 28 from 2026-10-26, 24 from 2026-10-12); a lower count is a
   failure even at exit 0.
 - **Every bump goes through `bun run bump`** (gated, [compat-gate.md](compat-gate.md)). An intended
   surface change re-baselines `api-surface.json` in its own commit, with the reason, first.

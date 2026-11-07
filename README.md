@@ -123,21 +123,38 @@ console.log(scale(3.0, 4.0)); // 12.0
 ## How It Works
 
 1. Resolves a relative `.wasm` path against the **loader's own location** (its `import.meta.url`); a `URL` or absolute path is used as given (see [Where your modules live](#where-your-modules-live))
-2. Auto-detects the companion `.wit` file by replacing `.wasm` → `.wit`
-3. Applies the Canonical ABI (wasmtime) — bool and string types handled automatically
-4. Reads a `file:` URL from disk on Node, Bun and Deno (Node's `fetch` does not accept `file:` URLs); otherwise fetches it once: an HTTP error throws `wasmImport: HTTP <status> for <url>`; a response served as `application/wasm` compiles with `WebAssembly.instantiateStreaming`, any other `Content-Type` through `arrayBuffer`
+2. Auto-detects the companion `.wit` file by replacing `.wasm` → `.wit`, and parses it strictly (an unsupported type or a malformed statement throws)
+3. Applies the Canonical ABI (wasmtime) — bool and string types handled automatically; every WIT import must have a host callback, and typed calls check their arguments
+4. Reads a `file:` URL from disk on Node, Bun and Deno (Node's `fetch` does not accept `file:` URLs); otherwise fetches it once, within a time limit (30 s by default): an HTTP error throws `wasmImport: HTTP <status> for <url>`; a response served as `application/wasm` compiles with `WebAssembly.instantiateStreaming`, any other `Content-Type` through `arrayBuffer`
 5. Returns an ABI-translated proxy keyed by camelCase WIT export names
 
-If no `.wit` file is found, raw `WebAssembly.Exports` are returned.
+If no `.wit` file **exists** (absent on disk, or HTTP 404 / 410), raw `WebAssembly.Exports` are
+returned. Every other `.wit` failure throws, so a module never silently loses its typed interface:
+
+| Situation | Result |
+| --- | --- |
+| `.wit` absent (no file, 404, 410) | raw `WebAssembly.Exports` |
+| `.wit` answers another HTTP error, the network fails, or the time limit passes | throws, naming the `.wit` URL and the status or reason |
+| `.wit` does not parse, or uses a type outside the table below | throws `wasmImport: invalid .wit <url>: <what is wrong>` |
+| `.wit` declares an export the module does not export | throws at load, naming it |
+| a WIT `import` has no host callback | throws at load, naming every missing one |
+| a typed call gets the wrong number or kind of arguments | throws a `TypeError` naming the export and the parameter |
 
 ## API
 
-### `wasmImport(wasmPath, hostCallbacks?)`
+### `wasmImport(wasmPath, hostCallbacks?, options?)`
 
 | Parameter | Type | Description |
 | --- | --- | --- |
 | `wasmPath` | `string \| URL` | Path or `URL` of the `.wasm` file. A relative string resolves against the loader's own location. Append `@N` to pin to a major version. |
-| `hostCallbacks` | `Record<string, Function>` | Host functions the WASM module calls into JS. Flat object, camelCase keys. |
+| `hostCallbacks` | `Record<string, Function>` | Host functions the WASM module calls into JS. Flat object, camelCase keys; one for every WIT `import`. |
+| `options.timeoutMs` | `number` | Time limit for EACH http(s) fetch (the `.wit`, then the `.wasm`), from the request to the last byte. Default `30000`; `Infinity` disables it. |
+| `options.signal` | `AbortSignal` | Aborts the load; it rejects with the signal's reason. |
+
+```javascript
+const ctl = new AbortController();
+const m = await wasmImport("https://example.com/mod.wasm", {}, { timeoutMs: 5000, signal: ctl.signal });
+```
 
 ### Where your modules live
 
@@ -153,15 +170,20 @@ A plain relative string such as `"./mod.wasm"` resolves against the loader's own
 right only when the module sits next to the loader; from an installed package, that location is
 inside `node_modules`.
 
-**Returns:** `Promise<Record<string, Function>>` — ABI-translated proxy keyed by camelCase WIT export names, or raw `WebAssembly.Exports` if no `.wit` file is found.
+**Returns:** `Promise<Record<string, Function>>` — ABI-translated proxy keyed by camelCase WIT export names, or raw `WebAssembly.Exports` if no `.wit` file exists (see [How It Works](#how-it-works) for what throws).
 
 ### Type mapping
 
-| WIT type | JS → WASM | WASM → JS |
-| --- | --- | --- |
-| `s32`, `s64`, `f32`, `f64` | pass as-is | return as-is |
-| `bool` | `value ? 1 : 0` | `result !== 0` |
-| `string` | UTF-8 encode → `cabi_realloc` → write → pass `(ptr, len)` | export returns an i32 ptr to a callee-allocated `[ptr, len]` pair; read via `DataView`, then call `cabi_post_<name>` |
+| WIT type | A typed call accepts | JS → WASM | WASM → JS |
+| --- | --- | --- | --- |
+| `s32` | an integer `number` in [-2³¹, 2³¹ − 1] | as-is | as-is |
+| `s64` | a `bigint` in [-2⁶³, 2⁶³ − 1] | as-is | as-is |
+| `f32`, `f64` | a `number` | as-is | as-is |
+| `bool` | a `boolean` | `value ? 1 : 0` | `result !== 0` |
+| `string` | a `string` | UTF-8 encode → `cabi_realloc` → write → pass `(ptr, len)` | export returns an i32 ptr to a callee-allocated `[ptr, len]` pair; read via `DataView`, then call `cabi_post_<name>` |
+
+Nothing is coerced: `add("3", 4)`, `add(2.5, 1)` and `add(1)` each throw a `TypeError`. Raw
+exports (no `.wit`) are plain `WebAssembly` functions and keep JavaScript's own conversions.
 
 See [SPEC.md](./SPEC.md) for the full cross-language conformance specification.
 
@@ -173,7 +195,7 @@ The loader consumes **reactor/library** modules (e.g. `wasmtk modc` output). It 
 in the browser. `fd_write` routes stdout→`console.log` and stderr→`console.error`; a pure-compute
 library imports nothing and is unaffected.
 
-### `createSingleton(wasmPath, hostCallbacks?)`
+### `createSingleton(wasmPath, hostCallbacks?, options?)`
 
 Returns an accessor function that loads the WASM instance on the first call and caches it for all subsequent calls.
 
@@ -185,9 +207,9 @@ const same = await getMod();        // returns cached instance
 
 Appropriate for CLI tools and bounded-call scenarios.
 
-### `InstancePool(wasmPath, hostCallbacks?, size?)`
+### `InstancePool(wasmPath, hostCallbacks?, size?, options?)`
 
-Pre-instantiates `size` (default: 4) independent WASM instances and manages acquire/release semantics for concurrent workloads.
+Pre-instantiates `size` (default: 4) independent WASM instances and manages acquire/release semantics for concurrent workloads. `options` applies to every instance.
 
 ```javascript
 const pool = new InstancePool("./mod.wasm", {}, 4);
@@ -225,7 +247,12 @@ It also runs the previous release's tests against the new code.
 
 | Version | What changed | How to migrate |
 | --- | --- | --- |
-| — | No breaking change since the compatibility gate began (1.1.0, 2026-10-12). | — |
+| 2.0.0 (SPEC 4.0.0) | A `.wit` that exists but fails to fetch (an HTTP status other than 404 / 410, a network error, a timeout) now **throws**; it used to load raw exports. | Serve the `.wit`, or remove it to load raw exports on purpose. |
+| 2.0.0 | A `.wit` that does not parse, or uses a type other than `s32` / `s64` / `f32` / `f64` / `bool` / `string`, now **throws**; it used to load an empty proxy, drop a malformed parameter, or read the type as `s32`. | Fix the `.wit`; regenerate it with `wasmtk`. |
+| 2.0.0 | A `.wit` export the module lacks now throws at load (it used to throw when called). | Regenerate the `.wit` from the module. |
+| 2.0.0 | A WIT `import` with no host callback now **throws at load**; it used to load and return `0` when called. | Pass a callback for every import. |
+| 2.0.0 | Typed calls check arguments and throw a `TypeError` on a wrong count or kind; they used to coerce (`add("x", 1)` = 1, `add(2.7, 1)` = 3). | Pass values of the WIT type (`bigint` for `s64`, `boolean` for `bool`). |
+| 2.0.0 | Every http(s) fetch has a 30 s limit by default; there was none. | Pass `{ timeoutMs: Infinity }` (or a larger value) as the third argument. |
 
 ## Publishing
 

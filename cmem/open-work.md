@@ -98,6 +98,25 @@ lists what is still open. Close an item by striking it here with the commit that
   ([working-rules.md](working-rules.md) § No secrets), H24 + C8 + H27 (★ re-copied and re-stamped,
   [best-practices.md](best-practices.md)), the pull line in `CLAUDE.md` now reads the workspace
   ledger first. Answers written to `../../cmem/workspace-correspondence.md`; the workspace closes.
+- ✅ **H29 (S8, S9, S10) — measured, decided by the owner, implemented as SPEC 4.0.0, 2026-11-07,
+  on branch `spec-4.0.0`; NOT released** (owner: "review workspace … make the requested fixes").
+  **Measured on 1.1.2 first** (scratch probe, Bun and Node 24, identical): `.wasm` 404 / 500 → one
+  request, error names the status ✅; a server that never answers → **hang** (`.wasm` and `.wit`;
+  a stalled `.wit` blocks the `.wasm` from ever being requested); `.wit` 500 → raw exports,
+  silently; **a malformed `.wit` → an EMPTY typed proxy** (the parser never failed: garbage gave an
+  empty world, `func(a: s32 b: s32)` dropped `b`, `-> s99` / `u32` read as `s32`) — found here,
+  beyond H29's list; raw `multiply(2.5, 4.0)` = 10 ✅; typed calls coerced (`add("x",1)` = 1,
+  `add(2.7,1)` = 3, `add(1)` = 1, `greet(42)` = "Hello, 42!"); `imports_50` with no callbacks
+  loaded and returned 0. 🔒 **Owner, 2026-11-07:** a malformed `.wit` and an unknown type throw;
+  only an ABSENT `.wit` (ENOENT, 404, 410) is raw, every other failure throws; 30 s default per
+  fetch plus `{ timeoutMs, signal }`; a missing host callback is refused at load; typed calls check
+  arity and kinds. Commits: `39eacc1` (surface re-baseline ALONE, rule 5: `LoadOptions`, the
+  options parameter, SPEC 4.0.0; 9 → 12 symbols) and the behaviour commit after it. Tests 28 → 63;
+  inverted against 1.1.2: the 32 new negative tests red, the 31 others green. Gate: every CI step,
+  `compat` floor **major** with v1.1.2's 28 tests green on the new code. ⬜ **To release: `bun run
+  bump major` → 2.0.0 and a tag — the owner's word.** ⬜ Not decided, so not changed: a host
+  callback's RETURN value is not checked (`undefined` still becomes `0`; SPEC §4 "same encoding in
+  reverse") — the same class as S9, for the owner. The nine ports follow SPEC 4.0.0 (ledger row).
 
 ## To hand over (not this repo's to fix)
 

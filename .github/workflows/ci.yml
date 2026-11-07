@@ -165,4 +165,4 @@ jobs:
         run: |
           curl -fsSL https://deno.land/install.sh | sh
           "$HOME/.deno/bin/deno" --version
-          "$HOME/.deno/bin/deno" test --allow-read --allow-env --allow-net=127.0.0.1 tests/loader.test.js
+          "$HOME/.deno/bin/deno" test --allow-read --allow-env --allow-net=127.0.0.1 --allow-write=.test-tmp tests/loader.test.js

@@ -4,7 +4,7 @@
   "scripts": {
     "test": "bun test ./tests/loader.test.js",
     "test:node": "node --test tests/loader.test.js",
-    "test:deno": "deno test --allow-read --allow-env --allow-net=127.0.0.1 tests/loader.test.js",
+    "test:deno": "deno test --allow-read --allow-env --allow-net=127.0.0.1 --allow-write=.test-tmp tests/loader.test.js",
     "check": "tsc -p tsconfig.json",
     "manifest": "bun scripts/check-manifest.ts",
     "browser": "bun scripts/check-browser.ts",

@@ -40,16 +40,18 @@ Local-file loads on Node work only from 1.1.0: earlier releases failed there bec
 
 ## Public surface (`universal-wasm-loader.js`)
 
-- **`wasmImport(wasmPath, hostCallbacks?)`** — instantiate + return a proxy keyed by the WIT export
-  names. Auto-detects `<path>.wit`; falls back to raw `WebAssembly.Exports` if absent. Supports an
+- **`wasmImport(wasmPath, hostCallbacks?, options?)`** — instantiate + return a proxy keyed by the
+  WIT export names. Auto-detects `<path>.wit`; raw `WebAssembly.Exports` only if it is ABSENT
+  (SPEC 4.0.0, 2026-11-07: every other `.wit` failure, a malformed `.wit`, a missing host callback
+  and a wrong-typed call throw). `options` = `{ timeoutMs (default 30 000), signal }`. Supports an
   optional `@N` version-pin suffix (checked against the module's exported `version` global).
   🔒 A relative STRING path resolves against the LOADER's own `import.meta.url`, not the caller's;
   callers keep modules where they like and pass `new URL("./wasm_modules/mod.wasm", import.meta.url)`.
   Owner decision 2026-10-12: keep this behaviour, and keep `SPEC.md`'s "relative to the calling
   module" wording for the other ports ([bun-migration.md](bun-migration.md) item 3).
-- **`createSingleton(wasmPath, hostCallbacks?)`** — caches the load promise; returns the same
-  instance on every call (CLI / bounded-call pattern).
-- **`InstancePool(wasmPath, hostCallbacks?, size=4)`** — `acquire()` / `release()` / `run(fn)` over
+- **`createSingleton(wasmPath, hostCallbacks?, options?)`** — caches the load promise; returns the
+  same instance on every call (CLI / bounded-call pattern).
+- **`InstancePool(wasmPath, hostCallbacks?, size=4, options?)`** — `acquire()` / `release()` / `run(fn)` over
   N independent instances (server / high-throughput pattern; distributes bump-allocator memory).
 
 Internal modules: `wit-parser.js` (parse `.wit` → imports/exports), `abi.js`
@@ -66,9 +68,11 @@ replaced the old caller-allocated out-parameter convention. The change lives in 
 
 ## Conformance / SPEC
 
-`SPEC.md` is the cross-language contract; currently **v3.0.0** (the 3.0.0 major bump WAS the
-return-convention change above — breaking vs. 2.x). Other-language ports predate this and must be
-re-aligned to SPEC 3.0.0.
+`SPEC.md` is the cross-language contract; currently **v4.0.0** (2026-11-07, owner's decisions on
+workspace letter H29: absent-vs-failed `.wit`, strict WIT, host callbacks required, typed-call
+argument checks, the §11 time limit — each a refusal, hence the major; package 2.0.0 when
+released). Before it, the 3.0.0 major WAS the return-convention change above (breaking vs. 2.x).
+The nine ports re-align to 4.0.0 (ledger row from loader-js, 2026-11-07).
 
 ## Tests
 
@@ -80,7 +84,11 @@ re-aligned to SPEC 3.0.0.
 (2026-10-26): **34 assertions in 28 tests** — four load over a local `node:http` server (the
 `fetch` path: a 404, `application/wasm`, `application/octet-stream`, a module that does not
 compile), so `test:deno` needs `--allow-net=127.0.0.1` — **28/28 on Bun 1.4.4, Node 22, 24, 26
-and Deno 2.9.8**. The fixtures are
+and Deno 2.9.8**. Current (2026-11-07, SPEC 4.0.0): **63 tests** — the refusals of §2, §4 and §11;
+`test:deno` also needs `--allow-write=.test-tmp` (one test writes a malformed `.wit` beside a copy
+of `math_50.wasm` in that gitignored folder) — **63/63 on Bun 1.4.4, Node 22, 24, 26 and Deno
+2.9.8**; in a page (Chrome 156, Edge 157, Firefox 159, ESR 153) the 49 that need no `node:http`
+pass. The fixtures are
 the stamped reference set every port copies, regenerated 2026-10-12 from wasmtk `f50c8e4` and
 re-stamped byte-identical 2026-10-26 from its post-purge twin `4a5c3cf668d`
 ([fixtures.md](fixtures.md)). The shipped `.js` is type-checked (`checkJs`) and linted by Biome
