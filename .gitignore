@@ -3,4 +3,5 @@ node_modules/
 dist/
 .npm-src/
 cmem/local/
+.test-tmp/
 .claude/settings.local.json

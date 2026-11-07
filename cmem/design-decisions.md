@@ -39,14 +39,22 @@ the pre-move text is `git show f3da283:CLAUDE.md`. Corrections made on the move 
 
 ## The load path (`wasmImport`)
 
-1. Strip `@N`; resolve the URL; look for `<path>.wit` (fall back to raw exports if absent).
-2. `buildComponentImportEnv(imports, hostCallbacks)` wraps the callbacks with ABI decoding and
-   returns `{ env, memRef }`; the WASI-P1 shim (`wasi.js`) is always added as
-   `wasi_snapshot_preview1`.
-3. Instantiate; set `memRef.current` (and the shim's) to `exports.memory`, needed to decode string
-   arguments of imports.
-4. Call `_initialize` if exported (SPEC §10); check `@N`.
-5. `buildComponentExportProxy` wraps the exports with ABI encoding, keyed by camelCase WIT names.
+1. Validate `options` (`timeoutMs` default 30 000, `signal`); strip `@N`; resolve the URL; look
+   for `<path>.wit`. 🔒 **SPEC 4.0.0 (owner, 2026-11-07): raw exports ONLY when the `.wit` is
+   absent** (ENOENT, HTTP 404 / 410); any other HTTP status, a network error, the time limit or an
+   abort throws before the `.wasm` is fetched. A path not ending in `.wasm` has no `.wit` (raw).
+2. `parseWit` is strict: the wasmtk subset only, every other form throws (an unsupported type is
+   never read as `s32` again). The error is wrapped as `invalid .wit <url>: …`.
+3. `buildComponentImportEnv(imports, hostCallbacks)` refuses a WIT import with no callback (all
+   missing ones named), then wraps the callbacks with ABI decoding and returns `{ env, memRef }`;
+   the WASI-P1 shim (`wasi.js`) is always added as `wasi_snapshot_preview1`.
+4. Instantiate (`fetchOnce`: one request, one time limit from request to last body byte); set
+   `memRef.current` (and the shim's) to `exports.memory`, needed to decode string arguments of
+   imports.
+5. Call `_initialize` if exported (SPEC §10); check `@N`.
+6. `buildComponentExportProxy` refuses a WIT export the module lacks, then wraps the exports with
+   ABI encoding, keyed by camelCase WIT names; each typed call checks arity and argument kinds
+   (`TypeError`, no coercion). Host callbacks' RETURN values are still not checked (open-work).
 
 No build step: the `.js` files are the source, and each links its `.d.ts` through the
 `@ts-self-types` pragma.
