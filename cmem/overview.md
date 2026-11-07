@@ -122,7 +122,13 @@ JSR). The v1.0.6 tag hit exactly this when the workflow was briefly switched to 
 the one **at the tagged commit**, so the tag must point at a commit that already contains a `run:`-only
 `publish.yml`.
 
-**Published:** `@jrmarcum/universal-wasm-loader@1.1.2` is live on JSR and
+**Published:** **2.0.0 (SPEC 4.0.0), 2026-11-07** (owner: "tag it first", then push): `Release
+v2.0.0` `1169ab9`, tag `v2.0.0`; publish run 42394507328 green (verify → JSR ∥ npm → GitHub
+Release), CI 42394504835 green. Read back independently: JSR rekorLogId **3742189142**, latest
+2.0.0, score 100, linked to the org repo; npm latest 2.0.0, SLSA v1 provenance, its 11 files
+byte-identical to the tag; a fresh `npm install …@2.0.0` on Node 24 loads `math_50` and refuses
+`add("x", 1)`, `imports_50` without callbacks, and a callback returning `undefined`, each with its
+message. Before it, `@jrmarcum/universal-wasm-loader@1.1.2` was live on JSR and
 `@synapticforge1/universal-wasm-loader@1.1.2` on npm (2026-10-26, owner: "push and release the
 next version") — the masked-HTTP-error fix. Publish run 40380578962: verify → JSR ∥ npm → GitHub
 Release, all green, the first full run of the one-run design. Read back independently: JSR

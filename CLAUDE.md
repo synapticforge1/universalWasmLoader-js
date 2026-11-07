@@ -32,6 +32,7 @@ The JS/TS **reference implementation** of the Universal WASM Loader, published t
 3. **Nothing is pushed, tagged or published unless the owner says so.** Commit messages go through a
    file (`git commit -F`), never a heredoc. Rules: `cmem/working-rules.md`.
 
-**Current state:** 1.1.2 on JSR (score 100) and npm (`@synapticforge1/universal-wasm-loader`),
-both with provenance, the same bytes (2026-10-26). One tag publishes both. GitHub:
+**Current state:** 2.0.0 (SPEC 4.0.0) on JSR (score 100) and npm
+(`@synapticforge1/universal-wasm-loader`), both with provenance, the same bytes (2026-11-07). One
+tag publishes both. GitHub:
 `synapticforge1/universalWasmLoader-js`.

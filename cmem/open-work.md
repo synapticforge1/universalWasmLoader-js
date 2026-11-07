@@ -99,7 +99,8 @@ lists what is still open. Close an item by striking it here with the commit that
   [best-practices.md](best-practices.md)), the pull line in `CLAUDE.md` now reads the workspace
   ledger first. Answers written to `../../cmem/workspace-correspondence.md`; the workspace closes.
 - ✅ **H29 (S8, S9, S10) — measured, decided by the owner, implemented as SPEC 4.0.0, 2026-11-07,
-  on branch `spec-4.0.0`; NOT released** (owner: "review workspace … make the requested fixes").
+  on branch `spec-4.0.0`; RELEASED as 2.0.0 the same day** (`1169ab9`, tag `v2.0.0`; read-backs in
+  [overview.md](overview.md) § Release flow) (owner: "review workspace … make the requested fixes").
   **Measured on 1.1.2 first** (scratch probe, Bun and Node 24, identical): `.wasm` 404 / 500 → one
   request, error names the status ✅; a server that never answers → **hang** (`.wasm` and `.wit`;
   a stalled `.wit` blocks the `.wasm` from ever being requested); `.wit` 500 → raw exports,
@@ -113,9 +114,9 @@ lists what is still open. Close an item by striking it here with the commit that
   arity and kinds. Commits: `39eacc1` (surface re-baseline ALONE, rule 5: `LoadOptions`, the
   options parameter, SPEC 4.0.0; 9 → 12 symbols) and the behaviour commit after it. Tests 28 → 63;
   inverted against 1.1.2: the 32 new negative tests red, the 31 others green. Gate: every CI step,
-  `compat` floor **major** with v1.1.2's 28 tests green on the new code. ⬜ **To release: `bun run
-  bump major` → 2.0.0 and a tag — the owner's word.** (The owner bumped `jsr.json` to 2.0.0 on
-  2026-11-07; the tag is still to come.) ✅ **Host callback RETURN values, fixed 2026-11-07**
+  `compat` floor **major** with v1.1.2's 28 tests green on the new code. ✅ **Released:** the owner
+  bumped `jsr.json` to 2.0.0, then "tag it first" → `Release v2.0.0` `1169ab9`, tag `v2.0.0`,
+  pushed; JSR + npm 2.0.0 with provenance (2026-11-07). ✅ **Host callback RETURN values, fixed 2026-11-07**
   (owner: "fix the last item on the callback return values"), inside the unreleased 2.0.0 / SPEC
   4.0.0. Measured first (`imports_50`, Bun): only a `bigint` was refused (by the engine);
   `undefined` / `null` → 0, `"12"` → 12, `2.9` → 2, `2 ** 31` → −2147483648, `true` → 1, an
