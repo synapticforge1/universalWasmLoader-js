@@ -54,7 +54,10 @@ the pre-move text is `git show f3da283:CLAUDE.md`. Corrections made on the move 
 5. Call `_initialize` if exported (SPEC §10); check `@N`.
 6. `buildComponentExportProxy` refuses a WIT export the module lacks, then wraps the exports with
    ABI encoding, keyed by camelCase WIT names; each typed call checks arity and argument kinds
-   (`TypeError`, no coercion). Host callbacks' RETURN values are still not checked (open-work).
+   (`TypeError`, no coercion). 🔒 Host callbacks' RETURN values are checked too (owner,
+   2026-11-07, "fix the last item"): `encodeCallbackResult` applies the argument domains in
+   reverse; a void import ignores the value; a Promise is refused for every import; an import
+   with a `string` result is refused at load (not implemented in this ABI profile).
 
 No build step: the `.js` files are the source, and each links its `.d.ts` through the
 `@ts-self-types` pragma.

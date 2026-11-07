@@ -7,8 +7,9 @@ Reference implementation: `@jrmarcum/universal-wasm-loader` (JSR)
 > **4.0.0 (2026-11-07) — loud failures, decided by the owner (workspace letter H29; divergences
 > S8, S9, S10).** Only an ABSENT `.wit` selects raw exports; every other `.wit` failure — an HTTP
 > error, a network error, a timeout, a parse error, an unsupported type — is an error (§2). A WIT
-> import with no host callback is refused at load (§4). Typed calls check their arguments and
-> never coerce (§4). Every http(s) fetch has a time limit, 30 s by default, and loads take an
+> import with no host callback is refused at load (§4). Typed calls check their arguments, and
+> host callbacks' return values are checked against the import's WIT result; neither is ever
+> coerced (§4). Every http(s) fetch has a time limit, 30 s by default, and loads take an
 > optional `options` argument (§1, §11). Each of these refuses something 3.0.0 accepted, hence
 > the major. Fixtures are unchanged.
 >
@@ -167,6 +168,8 @@ Return values from host callbacks follow the same encoding as export params in r
 
 **Every WIT `import` MUST have a host callback (4.0.0).** A missing one fails the load — before instantiation, with an error naming every missing callback (its camelCase key and its WIT name) — never a default value returned when WASM calls it. Callbacks for names the `.wit` does not import are ignored.
 
+**A host callback's return value MUST match the import's WIT result (4.0.0)** — the domains of "Typed-call arguments" below, in reverse, never coerced: `undefined`, `null`, `"12"`, `2.9` or `2 ** 31` for an `s32` result is an error (in JS a `TypeError`) naming the callback, its WIT import and result type, and the value; it is raised when WASM calls the import and reaches the caller of the export that called it. A callback for an import with no result may return anything; the value is ignored. A callback that returns a Promise (an `async` function) is an error for every import: WASM cannot wait for it. An import whose WIT result is `string` is not supported by this ABI profile and MUST fail the load, naming it.
+
 ---
 
 ## 5. String Encoding Details
@@ -310,6 +313,9 @@ Each MUST fail with an error (the message naming what the right-hand column name
 |---|---|
 | `imports_50` loaded with no host callbacks | both `envMul` and `envAdd` |
 | `imports_50` with only `envMul` | `envAdd` |
+| `imports_50`, `envAdd` returns `undefined`, `null`, `2.9`, `2 ** 31`, `true`, `"17"` or `17n`, then `combine(10, 7)` | the callback, its WIT import and result type, the value |
+| `imports_50`, `envMul` is `async`, then `scale(3.0, 4.0)` | the callback; that it returned a Promise |
+| a `.wit` declaring `import env-mul: func(p0: f64, p1: f64) -> string` beside `imports_50.wasm` | the import (load fails before the `.wasm` is fetched) |
 | `add("x", 1)`, `add(2.7, 1)`, `add(1, 2 ** 31)`, `add(1)` on `math_50` | the export and the parameter (or the count) |
 | `greet(42)` on `strings_50`; `isEven("4")` on `booleans_50` | the export and the parameter |
 | `math_50.wasm` beside a `.wit` that does not parse (e.g. `func(a: s32 b: s32)`) or uses `u32` | the `.wit` and the fault |

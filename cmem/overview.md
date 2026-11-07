@@ -88,7 +88,7 @@ and Deno 2.9.8**. Current (2026-11-07, SPEC 4.0.0): **63 tests** — the refusal
 `test:deno` also needs `--allow-write=.test-tmp` (one test writes a malformed `.wit` beside a copy
 of `math_50.wasm` in that gitignored folder) — **63/63 on Bun 1.4.4, Node 22, 24, 26 and Deno
 2.9.8**; in a page (Chrome 156, Edge 157, Firefox 159, ESR 153) the 49 that need no `node:http`
-pass. The fixtures are
+pass. Same day, host callback return values checked: **73 tests**. The fixtures are
 the stamped reference set every port copies, regenerated 2026-10-12 from wasmtk `f50c8e4` and
 re-stamped byte-identical 2026-10-26 from its post-purge twin `4a5c3cf668d`
 ([fixtures.md](fixtures.md)). The shipped `.js` is type-checked (`checkJs`) and linted by Biome
