@@ -13,6 +13,14 @@ the next free number; numbers are never reused.
 - **L2 A runtime claim nobody runs is a guess.** The README said "Node.js 18+" for every release up
   to 1.0.8; no test ran on Node, and Node's `fetch` rejects `file:` URLs, so every local load failed
   there (2026-10-12, fixed in 1.1.0). [universal-wasm-loader]
+- **L3 When asked to check one failure, probe its whole class first, and measure before the fix
+  is designed.** H29 asked what a `.wit` fetch failure does; the probe also served a MALFORMED
+  `.wit` and found a parser that could not fail (an empty world, a dropped parameter, every unknown
+  type read as `s32`) — a worse silent-wrong than the one asked about. The same day, "callback
+  returns" measured seven silent coercions before a line was written, which fixed the rule's
+  scope (the argument domains in reverse; Promises always refused). A local server with a request
+  counter and status / stall routes is the cheap probe for any fetch path
+  (2026-11-07, [spec-4.0.0.md](spec-4.0.0.md)). [universal-wasm-loader]
 
 ## ★ The workspace's convergent rules — a COPY, stamped 2026-10-26 (workspace letters H6, H24, H27, C8)
 

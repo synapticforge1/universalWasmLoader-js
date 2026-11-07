@@ -8,7 +8,7 @@ other-language ports (`-rs`, `-py`, `-go`, `-jvm`, `-c`, `-dotnet`, `-dart`, `-z
 match this implementation's behavior and the cross-language `SPEC.md`, with ONE accepted
 JS-specific difference: path resolution (below).
 
-## Where it lives (2026-10-21)
+## Where it lives (2026-10-21; latest release 2.0.0, 2026-11-07)
 
 - **GitHub:** `https://github.com/synapticforge1/universalWasmLoader-js`, a public repo of the
   **`synapticforge1` organization** (owner-controlled). 🔁 Moved there by the owner by 2026-10-21;
@@ -17,17 +17,19 @@ JS-specific difference: path resolution (below).
   followed on 2026-10-23 (`synapticforge1/wasmtk`; this repo's links to it fixed 2026-10-26, H17).
 - **JSR:** the package stays `@jrmarcum/universal-wasm-loader` (the JSR scope did not move). JSR's
   GitHub link already names `synapticforge1/universalWasmLoader-js` (`api.jsr.io`, updated
-  2026-10-20); proven by JSR 1.1.1's provenance (rekorLogId `3367515417`, 2026-10-21).
-- **npm** (owner, 2026-10-21): `@synapticforge1/universal-wasm-loader` — 1.1.0 by hand, **1.1.1
-  by trusted publishing with provenance** (SLSA v1), the same bytes as JSR's 1.1.1 —
-  [npm.md](npm.md).
+  2026-10-20); first proven by JSR 1.1.1's provenance (rekorLogId `3367515417`, 2026-10-21), last
+  by **2.0.0's (rekorLogId `3742189142`, 2026-11-07)**.
+- **npm** (owner, 2026-10-21): `@synapticforge1/universal-wasm-loader` — 1.1.0 by hand, every
+  release since **by trusted publishing with provenance** (SLSA v1), the same bytes as JSR's:
+  1.1.1, 1.1.2, **2.0.0** — [npm.md](npm.md).
 - **Trusted publishing after the move (letter H20, recorded 2026-10-26).** Both registries
   published 1.1.1 from the ORG repo on 2026-10-21, after the move, so neither policy is stuck on
   the old owner. JSR: the package is linked to `synapticforge1/universalWasmLoader-js` (the link
   updated by the owner 2026-10-20) and `deno publish` in `publish.yml` gets its OIDC token from
   that run; the 1.1.1 provenance (rekorLogId `3367515417`) names the org repo. npm: the trusted
   publisher was CREATED after the move (`npm trust list`: `github`, `publish.yml`,
-  `synapticforge1/universalWasmLoader-js`), so whatever IDs it locked are the org's. UNMEASURED:
+  `synapticforge1/universalWasmLoader-js`), so whatever IDs it locked are the org's; 1.1.2 and
+  2.0.0 then published through both with no change. UNMEASURED:
   whether either registry pins the repository/owner numeric IDs (neither UI shows them); it
   matters only on a further transfer or rename — then re-check both before the next release.
 
@@ -79,16 +81,17 @@ The nine ports re-align to 4.0.0 (ledger row from loader-js, 2026-11-07).
 `bun run test` (also `test:node`, `test:deno`) runs `tests/loader.test.js` (`node:test` +
 `node:assert` — no dependency; `@std/assert` 2026-10-12 → 2026-10-21, `tests/run_tests.js` before) against fixtures produced by `wasmtk`
 (`math_50` / `booleans_50` / `strings_50` / `imports_50` / `wasi_io_50`, plus the hand-written
-`init_check`) and the lifecycle scenarios (`createSingleton`, `InstancePool`). Current (2026-10-13):
-**26 assertions in 24 tests, 24/24 on Bun 1.4.3, Node 22, 24 and 26, Deno 2.9.7**. Current
-(2026-10-26): **34 assertions in 28 tests** — four load over a local `node:http` server (the
-`fetch` path: a 404, `application/wasm`, `application/octet-stream`, a module that does not
-compile), so `test:deno` needs `--allow-net=127.0.0.1` — **28/28 on Bun 1.4.4, Node 22, 24, 26
-and Deno 2.9.8**. Current (2026-11-07, SPEC 4.0.0): **63 tests** — the refusals of §2, §4 and §11;
-`test:deno` also needs `--allow-write=.test-tmp` (one test writes a malformed `.wit` beside a copy
-of `math_50.wasm` in that gitignored folder) — **63/63 on Bun 1.4.4, Node 22, 24, 26 and Deno
-2.9.8**; in a page (Chrome 156, Edge 157, Firefox 159, ESR 153) the 49 that need no `node:http`
-pass. Same day, host callback return values checked: **73 tests**. The fixtures are
+`init_check`) and the lifecycle scenarios (`createSingleton`, `InstancePool`).
+
+**Current (2026-11-07, 2.0.0): 73 tests, 73/73 on Bun 1.4.4, Node 22, 24 and 26 (`bun run lts`:
+3 LTS lines), Deno 2.9.8.** Beside the reference calls they cover the SPEC 4.0.0 refusals (§2
+absent-vs-failed `.wit` and strict parsing, §4 host callbacks and their return values and
+typed-call arguments, §11 time limit and abort — [spec-4.0.0.md](spec-4.0.0.md)) and the http
+`fetch` path, on a local `node:http` server; so `test:deno` needs `--allow-net=127.0.0.1` and
+`--allow-write=.test-tmp` (one test writes a malformed `.wit` in that gitignored folder). By hand,
+headless Chrome 156, Edge 157, Firefox 159, ESR 153: the 58 tests that need no Node server
+(open-work: not yet a gate; 🔒 Bun stands for Safari). Counts before: 24 (2026-10-12), 28
+(2026-10-26), 63 → 73 (2026-11-07). The fixtures are
 the stamped reference set every port copies, regenerated 2026-10-12 from wasmtk `f50c8e4` and
 re-stamped byte-identical 2026-10-26 from its post-purge twin `4a5c3cf668d`
 ([fixtures.md](fixtures.md)). The shipped `.js` is type-checked (`checkJs`) and linted by Biome

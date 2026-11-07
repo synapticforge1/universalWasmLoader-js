@@ -145,10 +145,20 @@ run 39697206534: the npm job green. registry.npmjs.org: **1.1.1 published, prove
 `https://slsa.dev/provenance/v1`, `latest` = 1.1.1**, `repository` = the org repo. Checked as a
 user: `npm install …@1.1.1` loads `math_50` / `strings_50` on Node 22, 24, 26 and Bun; its 11
 files are byte-identical to the `v1.1.1` tag (git blob ids). **JSR and npm now hold the same 1.1.1.**
-The first trusted publish in the workspace (binaryang's has not run yet). The next tag push is the
-first test of the one-run design (`verify` → `jsr` ∥ `npm` → `release`).
+The first trusted publish in the workspace (binaryang's had not run yet, 2026-10-21). The next tag
+push was the first test of the one-run design (`verify` → `jsr` ∥ `npm` → `release`).
 
-## Left to the owner, in order (binaryang's experience, `publishing.md` § 1.13.1)
+### ✅ Every release since: one tag, both registries, read back
+
+| Version | Date | Publish run | JSR rekorLogId | npm |
+| --- | --- | --- | --- | --- |
+| 1.1.2 | 2026-10-26 | 40380578962 (the first full one-run publish) | 3493886393 | SLSA v1, 11 files = the tag |
+| 2.0.0 | 2026-11-07 | 42394507328 | 3742189142 | SLSA v1, 11 files = the tag |
+
+Both read back independently (JSR `api.jsr.io`, registry.npmjs.org, the tarball's files hashed as
+git blobs against the tag) and installed fresh with `npm install` on Node 24.
+
+## ✅ Done 2026-10-21, in this order — the recipe, kept for a new npm package (binaryang's experience, `publishing.md` § 1.13.1)
 
 1. **The first version by hand** — npm's trusted publisher is configured on the PACKAGE, which must
    already exist. As `synapticforgeun`: `bun run npm:prove --tag v1.1.0` (builds `dist/` from the
@@ -160,7 +170,8 @@ first test of the one-run design (`verify` → `jsr` ∥ `npm` → `release`).
    (Packages → the package → Settings → Trusted publishing) or
    `npm trust github @synapticforge1/universal-wasm-loader --file publish.yml --repo synapticforge1/universalWasmLoader-js --allow-publish`
    (npm ≥ 11.15).
-3. **The repository variable `NPM_PUBLISH=true`** on GitHub.
+3. ~~**The repository variable `NPM_PUBLISH=true`** on GitHub.~~ Superseded the same day: the
+   one-run design has no on/off switch (§ "The release path").
 4. **A release within 2 days** of step 2: npm requires a new trusted-publisher configuration to
    complete a publish within 2 days (binaryang's record). `main` already holds a patch's worth
    (the `checkJs` fixes and the two null-memory errors since 1.1.0), so the next release can be

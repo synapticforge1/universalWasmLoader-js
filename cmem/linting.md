@@ -3,7 +3,7 @@
 🔒 Owner, 2026-10-13: TypeScript covers what it can; **Biome** replaces `deno lint` ("Biome has
 better backing. We will use that."), and **binaryang and wasmtk make the same switch** ("We are
 making the same switch for those projects also"), each in its own session, with this file as
-the reference. Bun 1.4.3 has no linter (`bun lint` outside a project:
+the reference (measured 2026-11-07: binaryang has switched; wasmtk has not — [open-work.md](open-work.md)). Bun 1.4.3 has no linter (`bun lint` outside a project:
 "Script not found"); it has `bun check`, a type checker equivalent to `tsc` (not adopted: this
 repo's own `check` script shadows the name; unmeasured).
 
@@ -18,6 +18,13 @@ repo's own `check` script shadows the name; unmeasured).
   `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`.
 - TypeScript also validates regular-expression syntax, which covers deno's `no-invalid-regexp`
   in every checked file.
+- **A real defect it found (fixed 2026-10-13):** a string-param import or a WASI call arriving
+  while `memRef.current` was still `null` (a module with no exported `memory`, or a call from its
+  start function) crashed with a bare `TypeError` on `null`; it now throws an `Error` naming the
+  import and the likely cause. Probed before / after; nothing else changed (floor patch).
+- `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` each caught one 2.0.0 line before
+  CI did (2026-11-07 / 2026-10-26): `fetch(url, { signal })` with a possibly-`undefined` signal,
+  and `split(";")[0]` — pass `null` / use an index-free form.
 
 ## Biome (`bun run lint` = `biome lint`, 2.5.15 pinned)
 

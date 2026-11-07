@@ -40,7 +40,8 @@ Measured the same day, the same five sources built three ways:
 | **wasmtk HEAD `f50c8e4`** (installed CLI, and a clean clone; byte-identical) | 115/140/533/134/295 B | — | **24/24** on Bun, Node 22/24, Deno |
 | wasmtk **2.0.3 from JSR** (the published version) | 114/161/540/128/307 B | differ | 🔴 **15 pass / 9 fail** |
 
-- 🔴 **Published wasmtk 2.0.3's `modc` output is wrong for this loader:** its `math_50.wit`
+- ✅ (2026-11-07: fixed in a release — wasmtk `v3.0.0` contains `4a5c3cf668d`, measured with
+  `git tag --contains`.) **Published wasmtk 2.0.3's `modc` output was wrong for this loader:** its `math_50.wit`
   declares `add` / `square` as `f64` where the source and HEAD say `s32`, and every bool function
   fails. HEAD fixes it. Until a wasmtk release ships HEAD's fixes, anyone regenerating from JSR
   gets broken fixtures. → for the owner / wasmtk.

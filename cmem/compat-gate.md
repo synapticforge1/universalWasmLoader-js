@@ -18,7 +18,13 @@ gate"): "backward compatible" is a gate result, never a judgment made at bump ti
 `.d.ts` each export names through `@ts-self-types` (one key per symbol, one per class member,
 overloads as `~2`; comments and whitespace do not count); the `SPEC.md` version. The generator
 FAILS on a form it cannot key (re-export, `export *`, default export, an export with no
-`@ts-self-types`) rather than skipping it. 9 symbols on 2026-10-12.
+`@ts-self-types`) rather than skipping it. 9 symbols on 2026-10-12; **12 since 2026-11-07**
+(`LoadOptions` + its two members; `39eacc1`, re-baselined alone).
+
+**The gate's first MAJOR (2.0.0, 2026-11-07):** `compat` reported floor major for the changed
+signatures, the SPEC major and the added interface, AND v1.1.2's 28 tests green on the new code —
+the evidence that every documented call that was correct in 1.x still works; the refusals hit
+only wrong calls. `bump major` was the owner's; after the tag, the floor against `v2.0.0` is patch.
 
 **The floor:** removed or changed → major; added → minor; nothing → patch; `SPEC.md` moves it by
 its own level (lowered → major). ⚠️ A CHANGED signature is major even when it only widens (an
@@ -29,7 +35,7 @@ becomes a burden, add reviewed exceptions as wasmtk did (`17e2054` there), not a
 `git archive` into `.compat/` (gitignored, deleted after) beside a copy of the CURRENT
 `publish.include` files, and run with the runtime running the script (`bun test`, or
 `node --test`). Both suite formats are read from their OUTPUT: `loader.test.js` (1.1.0 on) and the
-older `run_tests.js` (1.0.8: 24 of 24 against today's source).
+older `run_tests.js` (1.0.8: 24 of 24 against the source of 2026-10-12).
 
 **A stand-in for `@std/assert` (2026-10-21):** the tests of 1.1.0 and 1.1.1 import
 `assertStrictEquals` from `@std/assert`, which the repo no longer installs (owner: no `@std` that
@@ -38,7 +44,8 @@ for such a tag: that one function, as `node:assert/strict`'s `strictEqual` (the 
 comparison); anything else imported fails loudly. Measured: without it the v1.1.1 suite was RED,
 0 pass / 1 fail (the import); with it, green 24/24, and the bool mutant gives 15 pass / 9 fail,
 the same as the original inversion with the real library. Needed until the previous release is
-one whose tests use `node:assert` (the next one).
+one whose tests use `node:assert` — **true since 1.1.2 (2026-10-26)**, so the default gate no
+longer reaches it; it stays for `compat` runs against 1.1.0 / 1.1.1.
 
 **Consumers (Rule 3, second half):** this package has no known JSR consumer that runs a suite;
 `-py` and `-rs` vendor copies under `upstream/`. Nothing to run yet; revisit if one appears.
