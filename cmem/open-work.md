@@ -114,9 +114,17 @@ lists what is still open. Close an item by striking it here with the commit that
   options parameter, SPEC 4.0.0; 9 → 12 symbols) and the behaviour commit after it. Tests 28 → 63;
   inverted against 1.1.2: the 32 new negative tests red, the 31 others green. Gate: every CI step,
   `compat` floor **major** with v1.1.2's 28 tests green on the new code. ⬜ **To release: `bun run
-  bump major` → 2.0.0 and a tag — the owner's word.** ⬜ Not decided, so not changed: a host
-  callback's RETURN value is not checked (`undefined` still becomes `0`; SPEC §4 "same encoding in
-  reverse") — the same class as S9, for the owner. The nine ports follow SPEC 4.0.0 (ledger row).
+  bump major` → 2.0.0 and a tag — the owner's word.** (The owner bumped `jsr.json` to 2.0.0 on
+  2026-11-07; the tag is still to come.) ✅ **Host callback RETURN values, fixed 2026-11-07**
+  (owner: "fix the last item on the callback return values"), inside the unreleased 2.0.0 / SPEC
+  4.0.0. Measured first (`imports_50`, Bun): only a `bigint` was refused (by the engine);
+  `undefined` / `null` → 0, `"12"` → 12, `2.9` → 2, `2 ** 31` → −2147483648, `true` → 1, an
+  `async` callback → NaN / 0, all silent. Now: the argument domains in reverse, a `TypeError`
+  naming the callback, its WIT import and result type and the value, raised to the export's
+  caller; void imports ignore the value; a Promise is refused for every import; an import with a
+  `string` result is refused at load. Tests 63 → 73; against `e621a79` exactly the 9 new negative
+  tests red. UNMEASURED: a void import (no fixture has one; the code path is one `return
+  undefined`). The nine ports follow SPEC 4.0.0 (ledger row C29).
 
 ## To hand over (not this repo's to fix)
 

@@ -53,6 +53,26 @@ function signature(fn) {
 }
 
 /**
+ * Check a host callback's return value against its WIT import's result and encode it for WASM
+ * (SPEC 4.0.0 §4: the argument rules in reverse, nothing coerced). A void import ignores the
+ * value; a Promise is refused for every import, since WASM cannot await it.
+ * @param {WitFunc} fn
+ * @param {unknown} ret
+ * @returns {WasmValue | undefined}
+ */
+function encodeCallbackResult(fn, ret) {
+  const label = () => `host callback ${fn.tsName} (WIT import "${fn.name}"${fn.result ? ` -> ${fn.result}` : ""})`;
+  if (typeof (/** @type {{ then?: unknown }} */ (ret)?.then) === "function") {
+    throw new TypeError(`wasmImport: ${label()} returned a Promise; host callbacks must be synchronous (WASM cannot await)`);
+  }
+  if (fn.result === null) return undefined;
+  const expected = argProblem(fn.result, ret);
+  if (expected !== null) throw new TypeError(`wasmImport: ${label()} returned ${showValue(ret)}; expected ${expected}`);
+  if (fn.result === "bool") return ret ? 1 : 0;
+  return /** @type {WasmValue} */ (ret);
+}
+
+/**
  * Build the WASM `env` import object for the Canonical ABI (wasmtime) profile.
  *
  * Returns `{ env, memRef }`. After WASM instantiation, set `memRef.current`
@@ -60,7 +80,9 @@ function signature(fn) {
  * from linear memory.
  *
  * Every WIT import needs a callback: a missing one throws here, at load time, naming all of
- * them (SPEC 4.0.0 §4) — never a silent `0` when the module calls it.
+ * them (SPEC 4.0.0 §4) — never a silent `0` when the module calls it. An import with a `string`
+ * result is refused here too: returning a string to WASM is not implemented. A callback's
+ * return value is checked against the WIT result when the module calls it.
  *
  * @param {WitFunc[]} importFuncs
  * @param {Record<string, (...args: unknown[]) => unknown> | undefined} userCallbacks - keyed by camelCase tsName
@@ -71,6 +93,11 @@ export function buildComponentImportEnv(importFuncs, userCallbacks) {
   if (missing.length > 0) {
     const names = missing.map((fn) => `${fn.tsName} (WIT "${fn.name}")`).join(", ");
     throw new Error(`wasmImport: no host callback for WIT import${missing.length > 1 ? "s" : ""}: ${names}`);
+  }
+  const stringResult = importFuncs.filter((fn) => fn.result === "string");
+  if (stringResult.length > 0) {
+    const names = stringResult.map((fn) => `${fn.tsName} (WIT "${fn.name}")`).join(", ");
+    throw new Error(`wasmImport: a WIT import returning a string is not supported: ${names}`);
   }
 
   const memRef = { current: /** @type {WebAssembly.Memory|null} */ (null) };
@@ -107,9 +134,7 @@ export function buildComponentImportEnv(importFuncs, userCallbacks) {
             jsArgs.push(rawArgs[i++]);
           }
         }
-        const ret = cb(...jsArgs);
-        if (fn.result === "bool") return ret ? 1 : 0;
-        return ret ?? (fn.result ? 0 : undefined);
+        return encodeCallbackResult(fn, cb(...jsArgs));
       };
     } else {
       env[wasmKey] = (...rawArgs) => {
@@ -118,9 +143,7 @@ export function buildComponentImportEnv(importFuncs, userCallbacks) {
           if (!p) return v;
           return p.type === "bool" ? v !== 0 : v;
         });
-        const ret = cb(...jsArgs);
-        if (fn.result === "bool") return ret ? 1 : 0;
-        return ret ?? (fn.result ? 0 : undefined);
+        return encodeCallbackResult(fn, cb(...jsArgs));
       };
     }
   }

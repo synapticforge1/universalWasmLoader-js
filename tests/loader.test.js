@@ -13,8 +13,9 @@
  * The 26 assertions of the pre-migration `run_tests.js`, as 24 tests: the concurrent-pool pair
  * and the acquire/release pair each stay in one test, because each pair is one sequence.
  * Since 2026-10-26: 28 tests (34 assertions), the four added loading over http (the fetch path).
- * Since 2026-11-07 (SPEC 4.0.0): 63 tests — the refusals of §2 (absent vs failed `.wit`, strict
- * parsing), §4 (host callbacks, typed-call arguments) and §11 (time limit, abort).
+ * Since 2026-11-07 (SPEC 4.0.0): 73 tests — the refusals of §2 (absent vs failed `.wit`, strict
+ * parsing), §4 (host callbacks and their return values, typed-call arguments) and §11 (time
+ * limit, abort).
  */
 import { describe, it } from "node:test";
 import {
@@ -389,6 +390,50 @@ describe("SPEC 4.0.0 §4 — a WIT import needs a host callback", () => {
   it("one missing: refused at load, that one named", async () => {
     await assertRejects(wasmImport(fixture("imports_50.wasm"), { envMul: (/** @type {number} */ a, /** @type {number} */ b) => a * b }), {
       message: 'wasmImport: no host callback for WIT import: envAdd (WIT "env-add")',
+    });
+  });
+});
+
+describe("SPEC 4.0.0 §4 — host callback return values are checked", () => {
+  // imports_50: scale(x, f) calls env-mul (-> f64); combine(a, b) calls env-add (-> s32).
+  const ok = { envMul: (/** @type {number} */ a, /** @type {number} */ b) => a * b, envAdd: (/** @type {number} */ a, /** @type {number} */ b) => a + b };
+  /** @type {[string, "scale" | "combine", Record<string, (...a: any[]) => unknown>, string][]} */
+  const cases = [
+    ["undefined (f64)", "scale", { envMul: () => undefined }, 'host callback envMul (WIT import "env-mul" -> f64) returned undefined (undefined); expected a number'],
+    ["null (s32)", "combine", { envAdd: () => null }, 'host callback envAdd (WIT import "env-add" -> s32) returned null (null); expected an integer number in [-2147483648, 2147483647]'],
+    ['"12" (f64)', "scale", { envMul: () => "12" }, 'returned "12"; expected a number'],
+    ["2.9 (s32)", "combine", { envAdd: () => 2.9 }, "returned 2.9 (number); expected an integer number in [-2147483648, 2147483647]"],
+    ["2 ** 31 (s32)", "combine", { envAdd: () => 2 ** 31 }, "returned 2147483648 (number); expected an integer number in [-2147483648, 2147483647]"],
+    ["true (s32)", "combine", { envAdd: () => true }, "returned true (boolean); expected an integer number in [-2147483648, 2147483647]"],
+    ["17n (s32)", "combine", { envAdd: () => 17n }, "returned 17n; expected an integer number in [-2147483648, 2147483647]"],
+    ["a Promise (async)", "scale", { envMul: async () => 12 }, 'host callback envMul (WIT import "env-mul" -> f64) returned a Promise; host callbacks must be synchronous (WASM cannot await)'],
+  ];
+  for (const [label, call, override, tail] of cases) {
+    it(`${label} is refused when the module calls it`, async () => {
+      const m = /** @type {Record<string, (...a: number[]) => unknown>} */ (await wasmImport(fixture("imports_50.wasm"), { ...ok, ...override }));
+      const args = call === "scale" ? [3.0, 4.0] : [10, 7];
+      assertThrows(() => m[call]?.(...args), (/** @type {Error} */ e) => e instanceof TypeError && e.message.endsWith(tail));
+    });
+  }
+  it("correct returns still work: scale(3,4)=12, combine(-2147483648, 0) at the s32 edge", async () => {
+    const m = /** @type {Record<string, (...a: number[]) => unknown>} */ (await wasmImport(fixture("imports_50.wasm"), ok));
+    assertStrictEquals(m.scale?.(3.0, 4.0), 12.0);
+    assertStrictEquals(m.combine?.(-2147483648, 0), -2147483648);
+  });
+});
+
+describe("http(s) — SPEC 4.0.0 §4: a WIT import returning a string is refused at load", () => {
+  it("names the import; the .wasm is never fetched", async () => {
+    const wit = "world i { import env-mul: func(p0: f64, p1: f64) -> string; export scale: func(x: f64, factor: f64) -> f64; }";
+    const routes = {
+      "/sr/imports_50.wasm": { type: "application/wasm", body: await readFile(fixture("imports_50.wasm")) },
+      "/sr/imports_50.wit": { type: "text/plain", body: wit },
+    };
+    await withServer(routes, async (base, hits) => {
+      await assertRejects(wasmImport(`${base}/sr/imports_50.wasm`, { envMul: () => "x" }), {
+        message: 'wasmImport: a WIT import returning a string is not supported: envMul (WIT "env-mul")',
+      });
+      assertStrictEquals(hits.get("/sr/imports_50.wasm"), undefined);
     });
   });
 });

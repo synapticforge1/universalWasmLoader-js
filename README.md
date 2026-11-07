@@ -109,7 +109,7 @@ const { greet } = await wasmImport("./mod.wasm@2");
 
 ### With host import callbacks
 
-When your WASM module calls back into JS, pass the host functions as a flat camelCase object. The loader maps WIT kebab-case names (`env-mul`) to camelCase JS keys (`envMul`) automatically.
+When your WASM module calls back into JS, pass the host functions as a flat camelCase object. The loader maps WIT kebab-case names (`env-mul`) to camelCase JS keys (`envMul`) automatically. Every WIT import needs one, and each must return its WIT result type synchronously (an `s32` import must return an integer, never `undefined` or a Promise).
 
 ```javascript
 const { scale, combine } = await wasmImport("./math.wasm", {
@@ -138,6 +138,8 @@ returned. Every other `.wit` failure throws, so a module never silently loses it
 | `.wit` does not parse, or uses a type outside the table below | throws `wasmImport: invalid .wit <url>: <what is wrong>` |
 | `.wit` declares an export the module does not export | throws at load, naming it |
 | a WIT `import` has no host callback | throws at load, naming every missing one |
+| a host callback returns a value outside its WIT result type, or a Promise | throws a `TypeError` from the export call that reached it, naming the callback and the value |
+| a WIT `import` has a `string` result | throws at load (not supported) |
 | a typed call gets the wrong number or kind of arguments | throws a `TypeError` naming the export and the parameter |
 
 ## API
@@ -251,6 +253,7 @@ It also runs the previous release's tests against the new code.
 | 2.0.0 | A `.wit` that does not parse, or uses a type other than `s32` / `s64` / `f32` / `f64` / `bool` / `string`, now **throws**; it used to load an empty proxy, drop a malformed parameter, or read the type as `s32`. | Fix the `.wit`; regenerate it with `wasmtk`. |
 | 2.0.0 | A `.wit` export the module lacks now throws at load (it used to throw when called). | Regenerate the `.wit` from the module. |
 | 2.0.0 | A WIT `import` with no host callback now **throws at load**; it used to load and return `0` when called. | Pass a callback for every import. |
+| 2.0.0 | A host callback's return value is checked against the import's WIT result and throws a `TypeError` on a mismatch; it used to be coerced (`undefined` / `null` → 0, `2.9` → 2, `2 ** 31` wrapped, `true` → 1, an `async` callback's Promise → NaN or 0). A WIT import with a `string` result now throws at load. | Return the WIT result type, synchronously (`Math.trunc` for an `s32`, a `bigint` for `s64`). |
 | 2.0.0 | Typed calls check arguments and throw a `TypeError` on a wrong count or kind; they used to coerce (`add("x", 1)` = 1, `add(2.7, 1)` = 3). | Pass values of the WIT type (`bigint` for `s64`, `boolean` for `bool`). |
 | 2.0.0 | Every http(s) fetch has a 30 s limit by default; there was none. | Pass `{ timeoutMs: Infinity }` (or a larger value) as the third argument. |
 
