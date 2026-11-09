@@ -21,6 +21,10 @@ closed recently with the commit that closed it.
   shipped source has no top-level `node:` import. Same gap in binaryang.
 - **A void WIT import is UNMEASURED** (no fixture has one): SPEC §4 says its callback's return
   value is ignored; the code path is one `return undefined` ([spec-4.0.0.md](spec-4.0.0.md)).
+- **The release page in H32's order has not run on GitHub** (2026-11-09): measured by the
+  18-check self-test, five mutants and a read-only dry run of the lone script against the real
+  GitHub / JSR / npm. The next tag's page (`author.login` `github-actions[bot]`, the registry
+  links on top) is the measurement; write it into ledger H32.
 - **C29 (the nine ports on SPEC 4.0.0): open for -v only** (2026-11-09). All nine answered and
   released; verified read-only here (tag = claimed commit on GitHub, behaviour commit inside it,
   SPEC 4.0.0 + refusal tests at the tag, registry, green CI on the tag commit) and closed for the
@@ -40,6 +44,11 @@ closed recently with the commit that closed it.
 
 ## Closed recently (one line each; the record is in the linked file)
 
+- 2026-11-09 — **H32 recipe** (letter H32, owner via loader-py C41): `github-release.ts` now
+  stops with no write when the page exists, peels the tag again after the POST, limits every
+  request to 30 s, puts the JSR + npm links on top; the `release` job checks out nothing →
+  [working-rules.md](working-rules.md) 9. First run: the next tag. **H31** recorded (rule 11):
+  every Bun notation was already 1.4.4.
 - 2026-11-09 — **2.0.1 released** (`771ac03`), the reworked `publish.yml`'s first run; npm's
   provenance wait raised 3 → 10 minutes after it timed out; the owner's re-run turned the run
   green and measured the npm "already has the version" skip → [npm.md](npm.md).

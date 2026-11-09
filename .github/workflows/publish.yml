@@ -18,9 +18,11 @@ name: Publish
 #            from the tag with no install and requires verify's digest; refuses a manifest with
 #            `scripts`; npm publish; the attestation read-back. Skips when npm has the version.
 #   release  {contents: write} after verify, once BOTH registries serve the version, whatever
-#            jsr / npm exited with: scripts/github-release.ts (GitHub's REST API, no `gh` — letter
-#            H30) creates release/<tag> and the GitHub Release, refusing unless the tag is still
-#            this run's commit.
+#            jsr / npm exited with. No checkout (letter H32, C30): scripts/github-release.ts is
+#            fetched ALONE at the tagged commit and calls GitHub's REST API (no `gh` — H30): the tag
+#            must peel to this run's commit; an existing page = done, nothing written; else
+#            release/<tag> and the page (JSR + npm links on top of generated notes), read back,
+#            the tag peeled again. Every request has its own 30 s limit.
 #
 # Owner, 2026-11-09 (ledger H30, C30, C34): no `gh`; the jobs holding `id-token: write` run no
 # installer script, no dependency code and no build of their own; every clone is token-less (the
@@ -73,6 +75,8 @@ jobs:
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
       digest: ${{ steps.digest.outputs.digest }}
+      jsr_name: ${{ steps.digest.outputs.jsr_name }}
+      npm_name: ${{ steps.digest.outputs.npm_name }}
     steps:
       - name: Release tag shape
         run: |
@@ -194,6 +198,9 @@ jobs:
           D=$(cd dist && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
           echo "dist/ digest: $D"
           echo "digest=$D" >> "$GITHUB_OUTPUT"
+          # The package names for the release job, which checks out nothing.
+          echo "jsr_name=$(jq -r .name jsr.json)" >> "$GITHUB_OUTPUT"
+          echo "npm_name=$(jq -r .name dist/package.json)" >> "$GITHUB_OUTPUT"
 
       - name: JSR publish dry run
         if: github.event_name == 'push'
@@ -419,11 +426,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout (no credentials)
-        run: |
-          git clone --depth=1 --branch "$RELEASE_TAG" "https://github.com/${GITHUB_REPOSITORY}" .
-          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then echo "::error::the tag no longer names this run's commit"; exit 1; fi
-
       - name: Install Bun ${{ env.BUN_VERSION }} (pinned by sha256)
         run: |
           curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/bun.zip" "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
@@ -432,9 +434,20 @@ jobs:
           mkdir -p "$HOME/.bun/bin" && mv "$RUNNER_TEMP/bun-linux-x64/bun" "$HOME/.bun/bin/bun"
           echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
 
-      # GitHub's REST API (letter H30: no `gh`): release/<tag> + the GitHub Release, each created
-      # only when missing, only for the commit this run was started for, then read back.
+      # No checkout beside the write token (letter H32, C30): the one script, fetched alone at the
+      # commit this run was started for. It imports nothing; the package names come from verify.
+      - name: Fetch the release script at the tagged commit
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors --max-time 60 -o "$RUNNER_TEMP/github-release.ts" \
+            "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/scripts/github-release.ts"
+
+      # GitHub's REST API (letters H30 / H32: no `gh`, the page made by CI): the tag must peel to
+      # this run's commit; an existing page means done, nothing written; else release/<tag> and the
+      # page (registry links on top of generated notes), read back, the tag peeled again. Every
+      # request has its own 30 s limit.
       - name: Create release branch and GitHub Release (REST API)
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: bun scripts/github-release.ts
+          JSR_PACKAGE: ${{ needs.verify.outputs.jsr_name }}
+          NPM_PACKAGE: ${{ needs.verify.outputs.npm_name }}
+        run: bun "$RUNNER_TEMP/github-release.ts"
