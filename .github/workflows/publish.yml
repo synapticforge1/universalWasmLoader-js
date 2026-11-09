@@ -4,27 +4,39 @@ name: Publish
 # times is an issue"): JSR as @jrmarcum/universal-wasm-loader and npm as
 # @synapticforge1/universal-wasm-loader, the same code under the same version number.
 #
-#   verify   everything both publishes need, BEFORE either happens: the tag matches jsr.json, the
-#            full gate, the compatibility gate, the npm tarball proved, the JSR dry run, and the
-#            version FREE on both registries. Nothing is published here.
-#   jsr      after verify: deno publish (OIDC provenance), then the Rekor read-back.
-#   npm      after verify, IN PARALLEL with jsr: npm trusted publishing (OIDC, no token), then the
-#            attestation read-back. Not switchable off: a skipped npm job is how 1.1.1 reached JSR
-#            alone (the NPM_PUBLISH variable gate, removed 2026-10-21).
-#   release  after BOTH: the release/<tag> branch and the GitHub Release.
+#   verify   {contents: read} everything both publishes need, BEFORE either happens: the tag is
+#            this run's commit and matches jsr.json, the full gate, the compatibility gate, the
+#            npm tarball proved, the JSR dry run, the version FREE on both registries (npm: never
+#            in its package document's `time`, so a removed number counts as taken). Outputs the
+#            digest of the proved dist/. Nothing is published here, and no publishing credential
+#            exists in this job, so every third-party tool runs here.
+#   jsr      {id-token: write} the publishing credential: only the pinned Deno and Bun, a
+#            `bun install --ignore-scripts` (deno publish's type check needs @types/node), deno
+#            publish, the Rekor read-back. Skips the upload when JSR already has the version, so
+#            a re-run after a failure past the upload is safe (ledger C34).
+#   npm      {id-token: write} only the pinned Node (npm 11.19.0 bundled) and Bun: rebuilds dist/
+#            from the tag with no install and requires verify's digest; refuses a manifest with
+#            `scripts`; npm publish; the attestation read-back. Skips when npm has the version.
+#   release  {contents: write} after verify, once BOTH registries serve the version, whatever
+#            jsr / npm exited with: scripts/github-release.ts (GitHub's REST API, no `gh` — letter
+#            H30) creates release/<tag> and the GitHub Release, refusing unless the tag is still
+#            this run's commit.
+#
+# Owner, 2026-11-09 (ledger H30, C30, C34): no `gh`; the jobs holding `id-token: write` run no
+# installer script, no dependency code and no build of their own; every clone is token-less (the
+# repo is public), so no token sits in .git/config; tools are downloaded by version and checked
+# by sha256 (each pin matched two sources: our own hash and the publisher's checksum or GitHub's
+# release digest, 2026-11-09).
 #
 # The two registries cannot be published atomically. Everything that can fail on our side fails in
-# `verify`, so a split release needs a registry to fail between verify and its own publish; the
-# job that failed is then re-run alone ("Re-run failed jobs"; the version is free on that registry,
-# taken on the other, and versions are immutable on both, so never re-tag).
+# `verify`. A registry failure is repaired with "Re-run failed jobs": jsr / npm skip an upload that
+# already happened, and release waits for both registries. Never re-tag (versions are immutable).
 #
-# workflow_dispatch (tag input) is the RECOVERY path for a registry that missed a release: it
-# runs the npm job only, for a tag JSR already has. JSR is never published by dispatch.
+# workflow_dispatch (tag input) is the RECOVERY path for a registry that missed a release: verify
+# proves the tag's npm package, then the npm job publishes it. JSR is never published by dispatch.
 #
-# NOTE: every step is a plain `run:` step. Under the first owner (`jrmarcum`) a third-party
-# `uses:` meant a `startup_failure` with no step run (v1.0.6, 2026-06-15). The repo is in the
-# `synapticforge1` organization since 2026-10-21, with the same policy as binaryang there
-# (owner); `run:` steps work under any policy.
+# NOTE: every step is a plain `run:` step (the repo's rule since v1.0.6; `run:` works under any
+# Actions policy).
 
 on:
   push:
@@ -40,25 +52,56 @@ concurrency:
   group: publish-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
-permissions:
-  contents: read
+permissions: {}
+
+env:
+  BUN_VERSION: "1.4.4"
+  BUN_SHA256: "bf8ccbfb2b0b80159e0f9a6d15c55317add8077534dbc6130a3edb52fccb395c"
+  DENO_VERSION: "2.9.8"
+  DENO_SHA256: "e890975bc2549807bbcc0b584ffafda72cc7c93349dd99c80483dd784f6c4609"
+  NODE_VERSION: "24.21.0"
+  NODE_SHA256: "fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6"
+  # The dispatch input reaches the shell only through this variable, never interpolated.
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   verify:
-    name: Verify ${{ github.ref_name }} for JSR and npm
-    if: github.event_name == 'push'
+    name: Verify ${{ inputs.tag || github.ref_name }} for JSR and npm
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+      digest: ${{ steps.digest.outputs.digest }}
     steps:
-      # Full history and tags (no --depth): the compatibility gate compares with the previous tag.
-      - name: Checkout
+      - name: Release tag shape
         run: |
-          git clone --branch ${{ github.ref_name }} \
-            https://x-access-token:${{ github.token }}@github.com/${{ github.repository }} .
+          if ! printf '%s' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::not a release tag: $RELEASE_TAG"
+            exit 1
+          fi
+
+      # Token-less, full history and tags: the compatibility gate compares with the previous tag.
+      - name: Checkout (no credentials)
+        run: git clone --branch "$RELEASE_TAG" "https://github.com/${GITHUB_REPOSITORY}" .
+
+      # The tag as GitHub has it now (annotated tags peeled) must be the commit checked out; on a
+      # push it must also be the commit this run was started for.
+      - name: The tag is this commit
+        id: commit
+        run: |
+          HEAD=$(git rev-parse HEAD)
+          REMOTE=$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}" "refs/tags/${RELEASE_TAG}" "refs/tags/${RELEASE_TAG}^{}" \
+            | awk '{ if ($2 ~ /\^\{\}$/) p = $1; else t = $1 } END { print (p != "" ? p : t) }')
+          echo "HEAD $HEAD; tag on GitHub ${REMOTE:-(absent)}; run ${GITHUB_SHA}"
+          if [ "$REMOTE" != "$HEAD" ]; then echo "::error::tag ${RELEASE_TAG} on GitHub is not the checked-out commit"; exit 1; fi
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$HEAD" != "$GITHUB_SHA" ]; then echo "::error::tag ${RELEASE_TAG} moved since this run started"; exit 1; fi
+          echo "sha=$HEAD" >> "$GITHUB_OUTPUT"
 
       # jsr.json is the package manifest since the Bun migration (2026-10-12; deno.json before).
       - name: Verify jsr.json version matches tag
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG_VERSION="${RELEASE_TAG#v}"
           PKG_VERSION="$(jq -r .version jsr.json)"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
             echo "::error::Tag version ($TAG_VERSION) does not match jsr.json version ($PKG_VERSION)"
@@ -66,49 +109,94 @@ jobs:
           fi
           echo "Versions match: $TAG_VERSION"
 
-      # Neither registry may already hold this version: a version taken on one is a release that
-      # would end up split (both are immutable).
-      - name: Version is free on JSR and npm
+      # A push: neither registry may hold this version (a version taken on one is a release that
+      # would end up split). npm never reuses a number, a removed one included, and its package
+      # document keeps every number it ever had in `time` (ledger C34 (2)); a GET of the version
+      # itself answers 404 for a removed one, so the document is what is read.
+      # A dispatch (recovery): JSR must have it and npm must never have had it.
+      - name: Version on JSR and npm
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_TAG#v}"
           JSR=$(curl -s -o /dev/null -w '%{http_code}' -H "Cache-Control: no-cache" "https://api.jsr.io/scopes/jrmarcum/packages/universal-wasm-loader/versions/${VERSION}?cb=${GITHUB_RUN_ID}")
-          NPM=$(curl -s -o /dev/null -w '%{http_code}' -H "Cache-Control: no-cache" "https://registry.npmjs.org/@synapticforge1%2Funiversal-wasm-loader/${VERSION}?cb=${GITHUB_RUN_ID}")
-          echo "JSR ${VERSION}: HTTP ${JSR}; npm ${VERSION}: HTTP ${NPM}"
-          if [ "$JSR" != "404" ] || [ "$NPM" != "404" ]; then
-            echo "::error::${VERSION} is not free on both registries (JSR ${JSR}, npm ${NPM}; 404 = free)"
-            exit 1
+          DOC=$(curl -s -o npm-doc.json -w '%{http_code}' -H "Cache-Control: no-cache" "https://registry.npmjs.org/@synapticforge1%2Funiversal-wasm-loader?cb=${GITHUB_RUN_ID}")
+          case "$DOC" in
+            404) NPM=free ;;
+            200) NPM=$(jq -r --arg v "$VERSION" 'if (.time // {} | has($v)) then "taken" else "free" end' npm-doc.json) ;;
+            *) echo "::error::npm package document: HTTP $DOC"; exit 1 ;;
+          esac
+          rm -f npm-doc.json
+          echo "JSR ${VERSION}: HTTP ${JSR}; npm ${VERSION}: ${NPM}"
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            if [ "$JSR" != "404" ] || [ "$NPM" != "free" ]; then
+              echo "::error::${VERSION} is not free on both registries (JSR ${JSR}, npm ${NPM})"
+              exit 1
+            fi
+          else
+            if [ "$JSR" != "200" ] || [ "$NPM" != "free" ]; then
+              echo "::error::recovery needs ${VERSION} on JSR (${JSR}) and never on npm (${NPM})"
+              exit 1
+            fi
           fi
 
-      # The gate is CI's `gates` job, on Bun (the project's runtime since 2026-10-12).
-      - name: Install Bun and dev dependencies
+      - name: Install Bun ${{ env.BUN_VERSION }} (pinned by sha256)
         run: |
-          curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.3"
-          echo "$HOME/.bun/bin" >> $GITHUB_PATH
-          "$HOME/.bun/bin/bun" install --frozen-lockfile
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/bun.zip" "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
+          echo "${BUN_SHA256}  $RUNNER_TEMP/bun.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP"
+          mkdir -p "$HOME/.bun/bin" && mv "$RUNNER_TEMP/bun-linux-x64/bun" "$HOME/.bun/bin/bun"
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+          "$HOME/.bun/bin/bun" --version
 
+      - name: Install Node ${{ env.NODE_VERSION }} (pinned by sha256)
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/node.tar.xz" "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz"
+          echo "${NODE_SHA256}  $RUNNER_TEMP/node.tar.xz" | sha256sum -c -
+          mkdir -p "$HOME/node" && tar -xJf "$RUNNER_TEMP/node.tar.xz" -C "$HOME/node" --strip-components=1
+          echo "$HOME/node/bin" >> "$GITHUB_PATH"
+          "$HOME/node/bin/node" --version
+
+      - name: Install Deno ${{ env.DENO_VERSION }} (pinned by sha256)
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/deno.zip" "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip"
+          echo "${DENO_SHA256}  $RUNNER_TEMP/deno.zip" | sha256sum -c -
+          mkdir -p "$HOME/.deno/bin" && unzip -q "$RUNNER_TEMP/deno.zip" -d "$HOME/.deno/bin"
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
+          "$HOME/.deno/bin/deno" --version
+
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+
+      # The gate is CI's `gates` job, on Bun (the project's runtime since 2026-10-12).
       - name: Gate (types, lint, manifest, surface, fixtures, browser, tests)
+        if: github.event_name == 'push'
         run: bun run gate
 
       # The compatibility gate on the tagged commit (letter H6): the jsr.json bump since the
       # previous tag must meet the surface floor, and for a patch/minor the previous tag's tests
       # must pass against this source.
       - name: Compatibility gate (release)
+        if: github.event_name == 'push'
         run: bun run compat --release
 
-      # The npm tarball, built from this tag, installed into a scratch consumer and run (Node 24 +
-      # Bun), before anything is published to either registry.
-      - name: npm package (built, packed, installed, run)
-        run: |
-          curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$HOME/.fnm" --skip-shell
-          "$HOME/.fnm/fnm" install 24
-          "$HOME/.fnm/fnm" exec --using=24 bun run npm:prove
+      - name: Release script self-test (scripts/github-release.ts)
+        if: github.event_name == 'push'
+        run: bun run release:selftest
 
-      - name: Install Deno
+      # The npm tarball, built from this tag, installed into a scratch consumer and run (the
+      # pinned Node + Bun), before anything is published to either registry.
+      - name: npm package (built, packed, installed, run)
+        run: bun run npm:prove
+
+      # What the npm job must rebuild, byte for byte, before it may publish.
+      - name: Digest of the proved dist/
+        id: digest
         run: |
-          curl -fsSL https://deno.land/install.sh | sh
-          echo "$HOME/.deno/bin" >> $GITHUB_PATH
+          D=$(cd dist && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+          echo "dist/ digest: $D"
+          echo "digest=$D" >> "$GITHUB_OUTPUT"
 
       - name: JSR publish dry run
+        if: github.event_name == 'push'
         run: deno publish --dry-run
 
   jsr:
@@ -120,27 +208,34 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Checkout
+      - name: Checkout (no credentials)
         run: |
-          git clone --depth=1 --branch ${{ github.ref_name }} \
-            https://x-access-token:${{ github.token }}@github.com/${{ github.repository }} .
+          git clone --depth=1 --branch "$RELEASE_TAG" "https://github.com/${GITHUB_REPOSITORY}" .
+          if [ "$(git rev-parse HEAD)" != "${{ needs.verify.outputs.sha }}" ]; then
+            echo "::error::the tag no longer names the commit verify passed"
+            exit 1
+          fi
 
       # Publishing to JSR still needs Deno: `bunx jsr publish` downloads Deno and runs
       # `deno publish` as a subprocess, which skips the type check when a package.json exists
       # and is the kind of indirection that has lost OIDC provenance before. So `deno publish` is
       # called DIRECTLY; with no deno.json in the repo it reads jsr.json on its own.
-      - name: Install Deno
+      - name: Install Deno ${{ env.DENO_VERSION }} (pinned by sha256)
         run: |
-          curl -fsSL https://deno.land/install.sh | sh
-          echo "$HOME/.deno/bin" >> $GITHUB_PATH
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/deno.zip" "https://github.com/denoland/deno/releases/download/v${DENO_VERSION}/deno-x86_64-unknown-linux-gnu.zip"
+          echo "${DENO_SHA256}  $RUNNER_TEMP/deno.zip" | sha256sum -c -
+          mkdir -p "$HOME/.deno/bin" && unzip -q "$RUNNER_TEMP/deno.zip" -d "$HOME/.deno/bin"
+          echo "$HOME/.deno/bin" >> "$GITHUB_PATH"
 
       # `deno publish` type-checks with tsconfig.json, whose `types: ["node"]` needs @types/node
       # in node_modules: without it the check fails ("Could not find @types/node", measured
-      # 2026-10-21 on a tree with no node_modules).
-      - name: Install dev dependencies (for deno publish's type check)
+      # 2026-10-21 on a tree with no node_modules). `--ignore-scripts`: no package code runs here.
+      - name: Install dev dependencies (no scripts, for deno publish's type check)
         run: |
-          curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.3"
-          "$HOME/.bun/bin/bun" install --frozen-lockfile
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/bun.zip" "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
+          echo "${BUN_SHA256}  $RUNNER_TEMP/bun.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP"
+          "$RUNNER_TEMP/bun-linux-x64/bun" install --frozen-lockfile --ignore-scripts
 
       # Provenance requires a GitHub OIDC token; `id-token: write` injects
       # ACTIONS_ID_TOKEN_REQUEST_URL/_TOKEN. If they are absent, an org/enterprise OIDC policy is
@@ -154,8 +249,18 @@ jobs:
             echo "::warning::OIDC token NOT available (URL present: ${ACTIONS_ID_TOKEN_REQUEST_URL:+yes}, TOKEN present: ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:+yes}). deno publish will skip provenance."
           fi
 
-      - name: Publish to JSR
-        run: deno publish
+      # `deno publish` uploads, THEN signs provenance (ledger C34 (1)): a failure after the
+      # upload leaves the version on JSR. A re-run then finds it there and goes on to the
+      # read-back instead of failing on "already exists".
+      - name: Publish to JSR (unless JSR already has the version)
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Cache-Control: no-cache" "https://api.jsr.io/scopes/jrmarcum/packages/universal-wasm-loader/versions/${VERSION}?cb=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}")
+          case "$CODE" in
+            200) echo "JSR already has ${VERSION} (a re-run): not uploading again" ;;
+            404) deno publish ;;
+            *) echo "::error::JSR version probe: HTTP $CODE"; exit 1 ;;
+          esac
 
       # THE evidence of provenance (design from binaryang/wasmtk): `deno publish` skips attestation
       # non-fatally. JSR caches this endpoint, so every read is cache-busted.
@@ -164,7 +269,7 @@ jobs:
           PKG="$(jq -r .name jsr.json)"
           SCOPE=${PKG%/*}; SCOPE=${SCOPE#@}
           NAME=${PKG#*/}
-          VERSION=${GITHUB_REF_NAME#v}
+          VERSION=${RELEASE_TAG#v}
           URL="https://api.jsr.io/scopes/${SCOPE}/packages/${NAME}/versions/${VERSION}"
           echo "Checking $URL"
           for i in $(seq 1 12); do
@@ -184,70 +289,50 @@ jobs:
   npm:
     name: Publish ${{ inputs.tag || github.ref_name }} to npm
     needs: verify
-    # A tag push: after verify, beside jsr. A dispatch (recovery): alone, verify skipped.
-    if: >-
-      !cancelled() &&
-      ((github.event_name == 'push' && needs.verify.result == 'success') ||
-       github.event_name == 'workflow_dispatch')
+    if: needs.verify.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
-    env:
-      # The dispatch input reaches the shell only through this variable, never interpolated.
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
-      # On a dispatch (recovery) only: a real release tag, which JSR already has and npm lacks.
-      - name: Check the recovery tag
-        if: github.event_name == 'workflow_dispatch'
+      - name: Checkout (no credentials)
         run: |
-          if ! printf '%s' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::not a release tag: $RELEASE_TAG"
-            exit 1
-          fi
-          VERSION="${RELEASE_TAG#v}"
-          if ! curl -sf -H "Cache-Control: no-cache" "https://api.jsr.io/scopes/jrmarcum/packages/universal-wasm-loader/versions/${VERSION}?cb=${GITHUB_RUN_ID}" > /dev/null; then
-            echo "::error::JSR has no ${VERSION}: a release starts with the tag push, not here"
-            exit 1
-          fi
-          if curl -sf -H "Cache-Control: no-cache" "https://registry.npmjs.org/@synapticforge1%2Funiversal-wasm-loader/${VERSION}?cb=${GITHUB_RUN_ID}" > /dev/null; then
-            echo "::error::npm already has ${VERSION}: nothing to recover"
-            exit 1
-          fi
-          echo "JSR has ${VERSION} and npm does not: publishing it to npm"
-
-      - name: Checkout
-        run: |
-          git clone --depth=1 --branch "$RELEASE_TAG" \
-            https://x-access-token:${{ github.token }}@github.com/${{ github.repository }} .
-
-      - name: Verify jsr.json version matches tag
-        run: |
-          TAG_VERSION="${RELEASE_TAG#v}"
-          PKG_VERSION="$(jq -r .version jsr.json)"
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag version ($TAG_VERSION) does not match jsr.json version ($PKG_VERSION)"
+          git clone --depth=1 --branch "$RELEASE_TAG" "https://github.com/${GITHUB_REPOSITORY}" .
+          if [ "$(git rev-parse HEAD)" != "${{ needs.verify.outputs.sha }}" ]; then
+            echo "::error::the tag no longer names the commit verify passed"
             exit 1
           fi
 
-      - name: Install Bun and dev dependencies
+      # npm 11.19.0 comes with this Node's Linux tarball (measured 2026-11-09, from the tarball's
+      # lib/node_modules/npm/package.json): trusted publishing needs >= 11.5.1, so nothing is
+      # installed globally. The check below reads the version again on the runner.
+      - name: Install Node ${{ env.NODE_VERSION }} and Bun ${{ env.BUN_VERSION }} (pinned by sha256)
         run: |
-          curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.3"
-          echo "$HOME/.bun/bin" >> $GITHUB_PATH
-          "$HOME/.bun/bin/bun" install --frozen-lockfile
-
-      - name: Install Node 24 and npm 11 (trusted publishing needs npm >= 11.5.1)
-        run: |
-          curl -fsSL https://fnm.vercel.app/install | bash -s -- --install-dir "$HOME/.fnm" --skip-shell
-          "$HOME/.fnm/fnm" install 24
-          "$HOME/.fnm/fnm" exec --using=24 npm install -g npm@11
-          V="$("$HOME/.fnm/fnm" exec --using=24 npm --version)"
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/node.tar.xz" "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz"
+          echo "${NODE_SHA256}  $RUNNER_TEMP/node.tar.xz" | sha256sum -c -
+          mkdir -p "$HOME/node" && tar -xJf "$RUNNER_TEMP/node.tar.xz" -C "$HOME/node" --strip-components=1
+          echo "$HOME/node/bin" >> "$GITHUB_PATH"
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/bun.zip" "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
+          echo "${BUN_SHA256}  $RUNNER_TEMP/bun.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP"
+          mkdir -p "$HOME/.bun/bin" && mv "$RUNNER_TEMP/bun-linux-x64/bun" "$HOME/.bun/bin/bun"
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
+          V="$("$HOME/node/bin/npm" --version)"
           echo "npm $V"
-          # sort -V: the lower of the two first means V >= 11.5.1.
           if [ "$(printf '%s\n%s\n' "11.5.1" "$V" | sort -V | head -1)" != "11.5.1" ]; then
             echo "::error::npm $V is older than 11.5.1: no trusted publishing (OIDC) support"
             exit 1
           fi
+
+      # scripts/npm/build.ts needs no dependency (node: builtins only); it must reproduce, byte for
+      # byte, the dist/ that verify packed, installed and ran.
+      - name: Rebuild dist/ and match verify's digest
+        run: |
+          bun scripts/npm/build.ts
+          D=$(cd dist && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+          echo "dist/ digest: $D (verify: ${{ needs.verify.outputs.digest }})"
+          if [ "$D" != "${{ needs.verify.outputs.digest }}" ]; then echo "::error::dist/ differs from the one verify proved"; exit 1; fi
+          if jq -e 'has("scripts")' dist/package.json > /dev/null; then echo "::error::dist/package.json has scripts: npm would run them"; exit 1; fi
 
       # DIAGNOSTIC (2026-10-21: v1.1.1's first try ended in ENEEDAUTH, npm's silent fallback when
       # its OIDC exchange fails; the reason goes only to the runner's debug log). The same exchange
@@ -284,20 +369,16 @@ jobs:
             echo "::warning::npm refused the trusted-publishing exchange (HTTP $CODE): compare the package's trusted publisher with the claims above"
           fi
 
-      # On a tag push `verify` proved the tarball already; a dispatch proves it here.
-      - name: Build (and, on a dispatch, prove) the npm package
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            "$HOME/.fnm/fnm" exec --using=24 bun run npm:prove
-          else
-            "$HOME/.fnm/fnm" exec --using=24 bun run npm:build
-          fi
-
+      # A re-run after a failure past the upload finds the version and goes on to the read-back.
       # On failure, npm's own reasons from its debug log (the OIDC lines are not printed otherwise).
-      - name: Publish to npm (trusted publishing, provenance)
+      - name: Publish to npm (unless npm already has the version)
         working-directory: dist
         run: |
-          if ! "$HOME/.fnm/fnm" exec --using=24 npm publish; then
+          VERSION="${RELEASE_TAG#v}"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "Cache-Control: no-cache" "https://registry.npmjs.org/@synapticforge1%2Funiversal-wasm-loader/${VERSION}?cb=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}")
+          if [ "$CODE" = "200" ]; then echo "npm already has ${VERSION} (a re-run): not uploading again"; exit 0; fi
+          if [ "$CODE" != "404" ]; then echo "::error::npm version probe: HTTP $CODE"; exit 1; fi
+          if ! "$HOME/node/bin/npm" publish; then
             echo "--- npm debug log, OIDC / auth lines:"
             # Anything token-shaped (a JWT, an npm_… token) is masked before printing.
             grep -ihE 'oidc|trusted|token|auth|provenance' "$HOME"/.npm/_logs/*-debug-0.log \
@@ -324,29 +405,34 @@ jobs:
           echo "::error::@synapticforge1/universal-wasm-loader@${VERSION} has no provenance attestation on npm. The version exists and is immutable."
           exit 1
 
+  # Runs when verify passed and the run was not cancelled — even if jsr or npm FAILED, because a
+  # failure after an upload still published (ledger C34 (1)). The script itself waits until BOTH
+  # registries serve the version and fails otherwise.
   release:
     name: GitHub Release ${{ github.ref_name }}
-    needs: [jsr, npm]
-    if: github.event_name == 'push'
+    needs: [verify, jsr, npm]
+    if: >-
+      !cancelled() && github.event_name == 'push' && needs.verify.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout
+      - name: Checkout (no credentials)
         run: |
-          git clone --depth=1 --branch ${{ github.ref_name }} \
-            https://x-access-token:${{ github.token }}@github.com/${{ github.repository }} .
+          git clone --depth=1 --branch "$RELEASE_TAG" "https://github.com/${GITHUB_REPOSITORY}" .
+          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then echo "::error::the tag no longer names this run's commit"; exit 1; fi
 
-      - name: Create release branch
+      - name: Install Bun ${{ env.BUN_VERSION }} (pinned by sha256)
         run: |
-          git checkout -b release/${GITHUB_REF_NAME}
-          git push origin release/${GITHUB_REF_NAME}
+          curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/bun.zip" "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip"
+          echo "${BUN_SHA256}  $RUNNER_TEMP/bun.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP"
+          mkdir -p "$HOME/.bun/bin" && mv "$RUNNER_TEMP/bun-linux-x64/bun" "$HOME/.bun/bin/bun"
+          echo "$HOME/.bun/bin" >> "$GITHUB_PATH"
 
-      - name: Create GitHub Release
+      # GitHub's REST API (letter H30: no `gh`): release/<tag> + the GitHub Release, each created
+      # only when missing, only for the commit this run was started for, then read back.
+      - name: Create release branch and GitHub Release (REST API)
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create ${GITHUB_REF_NAME} \
-            --title "${GITHUB_REF_NAME}" \
-            --target release/${GITHUB_REF_NAME} \
-            --generate-notes
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bun scripts/github-release.ts

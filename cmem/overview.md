@@ -111,6 +111,26 @@ Provenance requires the GitHub OIDC token to reach the runner — the workflow h
 "Check OIDC availability" diagnostic step (added 2026-06-15, mirroring wasmtk) because that org's
 OIDC was found to be environmentally gated.
 
+**The job graph since 2026-11-09** (owner, on ledgers H30 / C30 / C34; working-rules 9 and 10):
+`verify` {contents: read} does everything that runs third-party code (gate, compat, release
+self-test, `npm:prove`, JSR dry run) and outputs the proved `dist/`'s digest; `jsr` and `npm`
+{id-token: write} hold the publishing credential and run only pinned Deno / Node / Bun — `jsr`
+a `bun install --ignore-scripts` for `deno publish`'s type check, `npm` a dependency-free
+`scripts/npm/build.ts` that must reproduce verify's digest — and each skips an upload the
+registry already has, so "Re-run failed jobs" is safe after a failure past the upload; `release`
+{contents: write} runs once verify passed, whatever `jsr` / `npm` exited with, and
+`scripts/github-release.ts` (REST API, no `gh`) waits for both registries, requires the tag to
+peel to `github.sha`, then creates `release/<tag>` and the GitHub Release. npm "free" means the
+version is absent from the package document's `time` (a removed number counts as taken — S3D's
+measurement; this package has none, measured 2026-11-09). Every clone is token-less; tools are
+pinned by version + sha256 (Bun 1.4.4, Deno 2.9.8, Node 24.21.0 with npm 11.19.0). Measured
+locally 2026-11-09, NOT yet on GitHub: the release script (13-check self-test, two mutants
+caught, and a read-only dry run against the real GitHub / JSR / npm for `v2.0.0`, `v1.1.2`, a
+wrong commit and an absent tag), the tag peel (lightweight here, annotated on loader-c's
+`v1.1.2`), the jq expressions, the pinned installs (Git Bash; a wrong pin stops the step under
+`bash -eo pipefail`), and the digest (`npm:prove`'s `dist/` = `build.ts`'s, 12 files). The first
+tag after this change is the first run.
+
 **The workflows use only `run:` steps — never `uses:` (third-party actions).** Under the
 `jrmarcum` owner the Actions policy permitted only actions owned by `jrmarcum`. 🔒 **For the
 `synapticforge1` organization, owner, 2026-10-21: "it has the same policy as before, and is the same

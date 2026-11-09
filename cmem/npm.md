@@ -44,7 +44,10 @@ clone without `typescript` installed made every type check fail for the wrong re
 ## The release path — ONE run publishes BOTH (owner, 2026-10-21)
 
 🔒 Owner, 2026-10-21: "we will need to setup this workflow … so that the jsr and npm publish at
-the same time. publishing at different times is an issue." `publish.yml` since then:
+the same time. publishing at different times is an issue." `publish.yml` from then until
+2026-11-09 (the table below; 🔁 **reworked 2026-11-09** for H30 / C30 / C34 — no `gh`, the
+`id-token` jobs run only pinned tools, npm rebuilds `dist/` to verify's digest, re-runs skip an
+upload already made, `release` follows the registries: [overview.md](overview.md) § Release flow):
 
 | job | does |
 | --- | --- |

@@ -38,7 +38,7 @@ jobs:
 
       - name: Install Bun
         run: |
-          curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.3"
+          curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.4"
           echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
       # `--frozen-lockfile`: a bun.lock that disagrees with package.json fails.
@@ -66,6 +66,11 @@ jobs:
       # The gate itself, proven able to fail (best-practices 2.1).
       - name: Compatibility gate self-test
         run: bun run compat:selftest
+
+      # publish.yml's release step (GitHub REST API, no `gh` — letter H30) against a mock API:
+      # every refusal sends no write; the happy path sends exactly the branch and the release.
+      - name: Release script self-test
+        run: bun run release:selftest
 
       # Floor since the last release + that release's tests against this source. Fails only on a
       # stale snapshot here; the floor and red previous-tag tests BLOCK at `bun run bump` and on
@@ -127,7 +132,7 @@ jobs:
             node: '24'
           - name: Node 26 (LTS from 2026-10-28)
             node: '26'
-          - name: Bun 1.4.3
+          - name: Bun 1.4.4
             bun: true
           - name: Deno 2.x
             deno: true
@@ -143,7 +148,7 @@ jobs:
       # 2026-10-21: node:test + node:assert).
       - name: Install Bun and dev dependencies
         run: |
-          curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.3"
+          curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.4"
           "$HOME/.bun/bin/bun" install --frozen-lockfile
 
       - name: Test (Node ${{ matrix.node }})
