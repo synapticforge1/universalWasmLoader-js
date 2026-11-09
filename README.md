@@ -259,8 +259,10 @@ It also runs the previous release's tests against the new code.
 
 ## Publishing
 
-One tag push (`v*`) publishes to JSR and then to npm from GitHub Actions, with OIDC provenance on
-both (npm through trusted publishing) — no stored token.
+One tag push (`v*`) publishes to JSR and npm in parallel from GitHub Actions, with OIDC
+provenance on both (npm through trusted publishing) — no stored token — after one job has run
+every check for both; then it creates the GitHub Release. The jobs that hold the publishing
+credential run only tools pinned by version and sha256.
 
 To release a new version: `bun run bump [patch|minor|major]` (raises `version` in `jsr.json`, the
 package manifest), then `bun run release`.
@@ -274,6 +276,7 @@ bun install          # dev dependencies (TypeScript, @types/node, Biome); the te
 bun run gate         # type check (incl. the shipped JS), Biome lint, manifest, API-surface
                      # snapshot, fixture stamp, browser check, tests on Bun
 bun run compat       # API floor since the last release + that release's tests on this code
+bun run release:selftest  # the release script (GitHub REST API) against a mock API
 bun run test:node    # the same tests on Node   (node --test; needs Node on PATH, see below)
 bun run test:deno    # the same tests on Deno   (deno test)
 bun run lts          # the tests on every current Node LTS line, through fnm

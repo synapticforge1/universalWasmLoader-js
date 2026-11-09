@@ -21,6 +21,13 @@ the next free number; numbers are never reused.
   scope (the argument domains in reverse; Promises always refused). A local server with a request
   counter and status / stall routes is the cheap probe for any fetch path
   (2026-11-07, [spec-4.0.0.md](spec-4.0.0.md)). [universal-wasm-loader]
+- **L4 Read a version from the artifact the runner will use, not from the copy on this
+  machine.** `npm --version` through this machine's fnm Node 24 said 12.2.0 (its npm had been
+  upgraded); the pinned Linux tarball the workflow downloads bundles **11.19.0** — found only
+  because the install step was executed and the tarball's own `npm/package.json` read. The same
+  day a tool pin was matched against two sources before use, and GitHub's release downloads
+  answered 504 for minutes at a time: retry, and never skip the second source because the first
+  was slow (2026-11-09, [overview.md](overview.md) § Release flow). [universal-wasm-loader]
 
 ## ★ The workspace's convergent rules — a COPY, stamped 2026-10-26 (workspace letters H6, H24, H27, C8)
 

@@ -42,12 +42,12 @@ reference test suite green (`bun run gate`, plus `bun run test:node` / `test:den
 | --- | --- |
 | [open-work.md](open-work.md) | **Start here for what is left** (re-derived 2026-11-07): the open items, hand-overs, one line per item closed recently |
 | [spec-4.0.0.md](spec-4.0.0.md) | 2.0.0 / SPEC 4.0.0 (2026-11-07): what it refuses that 3.0.0 accepted, measured before; the owner's decisions (H29); the 1.1.2 HTTP-error lead-in; commits, proof, edges left |
-| [npm.md](npm.md) | npm beside JSR (2026-10-21): `@synapticforge1/universal-wasm-loader`, the build and tarball proof, the one-run publish job, every release read back (1.1.2, 2.0.0), the recipe for a new package |
+| [npm.md](npm.md) | npm beside JSR (2026-10-21): `@synapticforge1/universal-wasm-loader`, the build and tarball proof, the one-run publish job (reworked 2026-11-09, see overview), every release read back (1.1.2, 2.0.0), the recipe for a new package |
 | [linting.md](linting.md) | `tsc` (`checkJs` + lint-like flags) and Biome 2.5.15: config, the deno-lint rule map, the `biome migrate` trap, what `checkJs` caught |
 | [best-practices.md](best-practices.md) | METHOD rules: this repo's own (§ L) + the workspace's 28 ★ convergent rules, copied verbatim, stamped 2026-10-26 |
-| [working-rules.md](working-rules.md) | The checklist: git, the gate (= CI's steps), the tooling hard rules in their Bun form, boundaries |
+| [working-rules.md](working-rules.md) | The checklist: git, the gate (= CI's steps), the tooling hard rules in their Bun form (9: no `gh`; 10: publishing jobs run only pinned tools), boundaries, the privacy rule |
 | [design-decisions.md](design-decisions.md) | 🔒 Invariants kept in full: the six design principles, the architectural decisions, the load path (with SPEC 4.0.0's refusals), WIT name conventions |
 | [fixtures.md](fixtures.md) | The reference fixture set (H7/S4): the stamp, regenerate/verify, the 2026-10-12 wasmtk comparison, the per-port hand-over |
 | [compat-gate.md](compat-gate.md) | The compatibility gate (H6): surface snapshot, floor, previous-tag tests, where each runs, the inversion record |
-| [overview.md](overview.md) | Where it lives (GitHub `synapticforge1/universalWasmLoader-js`, JSR `@jrmarcum/universal-wasm-loader`, npm `@synapticforge1/universal-wasm-loader`), what this loader is, the API surface, ABI it implements, conformance/SPEC status (4.0.0), test suite (73; the runtime and browser matrix), and the release flow (2.0.0 latest) |
+| [overview.md](overview.md) | Where it lives (GitHub `synapticforge1/universalWasmLoader-js`, JSR `@jrmarcum/universal-wasm-loader`, npm `@synapticforge1/universal-wasm-loader`), what this loader is, the API surface, ABI it implements, conformance/SPEC status (4.0.0), test suite (73; the runtime and browser matrix), and the release flow (2.0.0 latest; the 2026-11-09 job graph: pinned tools, REST release script, recoverable uploads — not yet run on GitHub) |
 | [bun-migration.md](bun-migration.md) | 2026-10-12 move off Deno to Bun (+ Node): `jsr.json` manifest, `bun run` scripts, `node:test` suite, CI matrix, the Node `file:` URL bug it surfaced, open items |

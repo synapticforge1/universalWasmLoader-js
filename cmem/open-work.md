@@ -44,6 +44,12 @@ closed recently with the commit that closed it.
 
 ## Closed recently (one line each; the record is in the linked file)
 
+- 2026-11-09 — **H30 / C30 / C34 implemented** (owner: "Fix H30 + C30 + C34"): `publish.yml`
+  without `gh`, pinned tools in the `id-token` jobs, recoverable uploads, npm "free" from `time`;
+  `scripts/github-release.ts` + its self-test; CI on Bun 1.4.4 (`e6d589e`) →
+  [overview.md](overview.md) § Release flow. Its first GitHub run is the open item above.
+- 2026-11-09 — **C29 closed for eight ports** (-c, -dart, -dotnet, -go, -jvm, -py, -rs, -zig),
+  verified read-only; ledger C14 closed 2026-11-07.
 - 2026-11-07 — **2.0.0 / SPEC 4.0.0 released** (H29: the `.wit` absent-vs-failed rule, strict
   WIT, host callbacks and their return values, typed-call checks, the 30 s fetch limit):
   `39eacc1`, `e621a79`, `6b09b37`, `1169ab9` = `v2.0.0` → [spec-4.0.0.md](spec-4.0.0.md).
