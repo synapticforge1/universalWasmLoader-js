@@ -152,7 +152,15 @@ JSR). The v1.0.6 tag hit exactly this when the workflow was briefly switched to 
 the one **at the tagged commit**, so the tag must point at a commit that already contains a `run:`-only
 `publish.yml`.
 
-**Published:** **2.0.1, 2026-11-09** (owner: "release"; a patch — only the shipped README
+**Published:** **2.0.2, 2026-11-09** (owner: "update the project memory files, commit, push and
+release"; a patch with NO shipped file changed — the first tag run of the release page in H32's
+order): `Release v2.0.2` `1c840d2` = tag `v2.0.2`; publish run 42663185314 green in every job
+(npm's provenance read-back took 77 s of its 10 minutes). The page, read back through the REST
+API: `author.login` `github-actions[bot]`, not a draft, `releases/latest` = v2.0.2, the JSR and
+npm links on top of the generated notes; `release/v2.0.2` = the tag's commit; the `release` job
+ran no checkout (pinned Bun, the script fetched alone, the page in 4 s). JSR rekorLogId
+**3767290265**, score 100; npm SLSA v1, 11 files = the tag; a fresh install loads and refuses.
+Before it, **2.0.1, 2026-11-09** (owner: "release"; a patch — only the shipped README
 changed): `Release v2.0.1` `771ac03` = tag `v2.0.1`; publish run 42633902729 — the first run of
 the 2026-11-09 job graph: `verify` / `jsr` / `release` green, `npm` published but its provenance
 read-back timed out at 3 minutes; green after the owner's re-run ([npm.md](npm.md) § the table). Read back independently: JSR

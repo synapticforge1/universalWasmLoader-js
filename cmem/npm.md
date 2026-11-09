@@ -158,6 +158,7 @@ push was the first test of the one-run design (`verify` → `jsr` ∥ `npm` → 
 | 1.1.2 | 2026-10-26 | 40380578962 (the first full one-run publish) | 3493886393 | SLSA v1, 11 files = the tag |
 | 2.0.0 | 2026-11-07 | 42394507328 | 3742189142 | SLSA v1, 11 files = the tag |
 | 2.0.1 | 2026-11-09 | 42633902729 (green on attempt 2, see below) | 3766026937 | SLSA v1, 11 files = the tag |
+| 2.0.2 | 2026-11-09 | 42663185314 (green, every job; npm's provenance visible after 77 s) | 3767290265 | SLSA v1, 11 files = the tag |
 
 **2.0.1's run — the first of the 2026-11-09 job graph:** `verify`, `jsr` and `release` green;
 the `npm` job published, then its provenance read-back gave up after 3 minutes (12 × 15 s) — the
