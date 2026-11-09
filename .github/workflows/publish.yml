@@ -388,11 +388,13 @@ jobs:
           fi
 
       # The evidence, as for JSR: the attestation read back from the registry, cache-busted.
+      # Up to 10 minutes: for 2.0.1 (run 42633902729) the attestation was NOT visible within the
+      # former 3 minutes (12 x 15 s) and appeared later, so a published release ran red.
       - name: Verify provenance was recorded on npm
         run: |
           VERSION=${RELEASE_TAG#v}
           URL="https://registry.npmjs.org/@synapticforge1%2Funiversal-wasm-loader/${VERSION}"
-          for i in $(seq 1 12); do
+          for i in $(seq 1 40); do
             P=$(curl -sf -H "Cache-Control: no-cache" "${URL}?cb=${GITHUB_RUN_ID}-${i}" | jq -r '.dist.attestations.provenance.predicateType // empty' 2>/dev/null || true)
             if [ -n "$P" ]; then
               echo "npm provenance recorded: $P"

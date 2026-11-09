@@ -157,6 +157,14 @@ push was the first test of the one-run design (`verify` → `jsr` ∥ `npm` → 
 | --- | --- | --- | --- | --- |
 | 1.1.2 | 2026-10-26 | 40380578962 (the first full one-run publish) | 3493886393 | SLSA v1, 11 files = the tag |
 | 2.0.0 | 2026-11-07 | 42394507328 | 3742189142 | SLSA v1, 11 files = the tag |
+| 2.0.1 | 2026-11-09 | 42633902729 (red, see below) | 3766026937 | SLSA v1, 11 files = the tag |
+
+**2.0.1's run — the first of the 2026-11-09 job graph:** `verify`, `jsr` and `release` green;
+the `npm` job published, then its provenance read-back gave up after 3 minutes (12 × 15 s) — the
+attestation became visible later (read back here minutes after). The design held: `release` ran
+anyway, waited for both registries, and created `release/v2.0.1` and the GitHub Release. The
+read-back now waits up to 10 minutes. A "Re-run failed jobs" of that run (web UI, owner) would
+measure the "npm already has the version" skip for the first time.
 
 Both read back independently (JSR `api.jsr.io`, registry.npmjs.org, the tarball's files hashed as
 git blobs against the tag) and installed fresh with `npm install` on Node 24.

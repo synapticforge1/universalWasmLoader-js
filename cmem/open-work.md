@@ -6,10 +6,9 @@ closed recently with the commit that closed it.
 
 ## Open
 
-- **The reworked `publish.yml` has not run on GitHub** (2026-11-09; H30 / C30 / C34): every
-  piece was measured locally ([overview.md](overview.md) § Release flow), the whole only runs on
-  the next `v*` tag. Read that run job by job: `verify` outputs a digest, `jsr` / `npm` use the
-  pinned tools and match it, `release` creates the branch and the Release through the REST API.
+- 🗓️ **OWNER (web UI, optional): "Re-run failed jobs" on publish run 42633902729** (2.0.1). It
+  turns the run green and is the first measurement of the npm job's "already has the version"
+  skip. 2.0.1 itself is complete on both registries and GitHub ([npm.md](npm.md)).
 - **CI (`ci.yml`) still installs Bun, Deno and fnm with `curl | bash`** — it holds no publishing
   credential (C30's scope), but the same pinned downloads would remove the last unpinned
   installers. Not changed without the owner.
@@ -44,6 +43,8 @@ closed recently with the commit that closed it.
 
 ## Closed recently (one line each; the record is in the linked file)
 
+- 2026-11-09 — **2.0.1 released** (`771ac03`), the reworked `publish.yml`'s first run; npm's
+  provenance wait raised 3 → 10 minutes after it timed out → [npm.md](npm.md).
 - 2026-11-09 — **H30 / C30 / C34 implemented** (owner: "Fix H30 + C30 + C34"): `publish.yml`
   without `gh`, pinned tools in the `id-token` jobs, recoverable uploads, npm "free" from `time`;
   `scripts/github-release.ts` + its self-test; CI on Bun 1.4.4 (`e6d589e`) →

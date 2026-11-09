@@ -28,6 +28,13 @@ the next free number; numbers are never reused.
   day a tool pin was matched against two sources before use, and GitHub's release downloads
   answered 504 for minutes at a time: retry, and never skip the second source because the first
   was slow (2026-11-09, [overview.md](overview.md) § Release flow). [universal-wasm-loader]
+- **L5 A scratch `npm install` needs its own `package.json`, or it writes into the nearest
+  ancestor that has one.** Three consumer checks (1.1.2, 2.0.0, 2.0.1) ran `npm install` in a
+  scratch folder with no `package.json`; npm walked up and added the package as a dependency of
+  the owner's HOME folder's `package.json`, its lockfile and `node_modules` — found only when a
+  check of the installed version looked in the scratch folder and found nothing. Undone with
+  `npm uninstall` on the owner's word; the consumer folder now gets `{ "private": true }` first,
+  and the check asserts where the package landed (2026-11-09). [universal-wasm-loader]
 
 ## ★ The workspace's convergent rules — a COPY, stamped 2026-10-26 (workspace letters H6, H24, H27, C8)
 

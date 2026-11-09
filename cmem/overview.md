@@ -128,8 +128,10 @@ locally 2026-11-09, NOT yet on GitHub: the release script (13-check self-test, t
 caught, and a read-only dry run against the real GitHub / JSR / npm for `v2.0.0`, `v1.1.2`, a
 wrong commit and an absent tag), the tag peel (lightweight here, annotated on loader-c's
 `v1.1.2`), the jq expressions, the pinned installs (Git Bash; a wrong pin stops the step under
-`bash -eo pipefail`), and the digest (`npm:prove`'s `dist/` = `build.ts`'s, 12 files). The first
-tag after this change is the first run.
+`bash -eo pipefail`), and the digest (`npm:prove`'s `dist/` = `build.ts`'s, 12 files). **First
+run: 2.0.1, 2026-11-09** — every job did its part (the pinned installs, verify's digest matched
+by the npm job, the REST release step); only npm's provenance read-back was too short (now 10
+minutes). Not yet exercised: the re-run skips (an owner re-run of 42633902729 would).
 
 **The workflows use only `run:` steps — never `uses:` (third-party actions).** Under the
 `jrmarcum` owner the Actions policy permitted only actions owned by `jrmarcum`. 🔒 **For the
@@ -145,7 +147,14 @@ JSR). The v1.0.6 tag hit exactly this when the workflow was briefly switched to 
 the one **at the tagged commit**, so the tag must point at a commit that already contains a `run:`-only
 `publish.yml`.
 
-**Published:** **2.0.0 (SPEC 4.0.0), 2026-11-07** (owner: "tag it first", then push): `Release
+**Published:** **2.0.1, 2026-11-09** (owner: "release"; a patch — only the shipped README
+changed): `Release v2.0.1` `771ac03` = tag `v2.0.1`; publish run 42633902729 — the first run of
+the 2026-11-09 job graph: `verify` / `jsr` / `release` green, `npm` published but its provenance
+read-back timed out at 3 minutes ([npm.md](npm.md) § the table). Read back independently: JSR
+rekorLogId **3766026937**, latest 2.0.1, score 100; npm latest 2.0.1, SLSA v1, 11 files = the
+tag; GitHub: tag, `release/v2.0.1` and the Release (`github-release.ts --dry-run`); a fresh
+`npm install …@2.0.1` on Node 24 loads `math_50` and gives the three refusals. Before it,
+**2.0.0 (SPEC 4.0.0), 2026-11-07** (owner: "tag it first", then push): `Release
 v2.0.0` `1169ab9`, tag `v2.0.0`; publish run 42394507328 green (verify → JSR ∥ npm → GitHub
 Release), CI 42394504835 green. Read back independently: JSR rekorLogId **3742189142**, latest
 2.0.0, score 100, linked to the org repo; npm latest 2.0.0, SLSA v1 provenance, its 11 files
