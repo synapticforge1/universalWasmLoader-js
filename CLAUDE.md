@@ -34,5 +34,6 @@ The JS/TS **reference implementation** of the Universal WASM Loader, published t
 
 **Current state:** 2.0.2 (SPEC 4.0.0) on JSR (score 100) and npm
 (`@synapticforge1/universal-wasm-loader`), both with provenance, the same bytes (2026-11-09). One
-tag publishes both and makes the GitHub Release page. GitHub:
+tag publishes both and makes the GitHub Release page. `main` carries SPEC **4.0.1** (a
+clarification, 2026-11-09), unreleased. GitHub:
 `synapticforge1/universalWasmLoader-js`.
