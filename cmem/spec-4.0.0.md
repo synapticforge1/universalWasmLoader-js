@@ -63,6 +63,20 @@ released 1.1.2: one fetch, `!res.ok` → `wasmImport: HTTP <status> for <url>`, 
 - As a user: a fresh `npm install …@2.0.0` on Node 24 loads `math_50` and refuses `add("x", 1)`,
   `imports_50` without callbacks, and a callback returning `undefined`, each with its message.
 
+## Port allowances (SPEC 4.0.1, 2026-11-09)
+
+- **A zero-value options type (§11.1).** loader-go flagged in C29 / C35 that Go's zero-value
+  `LoadOptions{}` cannot say "unset", so it reads `Timeout: 0` as the 30 s default where §11.1
+  made zero an error. 🔒 **Owner, 2026-11-08: "adjust for go."** C35 then waited on loader-js to
+  record it (loader-go, 2026-11-09: "the only open item for loader-go"). Recorded in the SPEC as
+  an allowance with three conditions — a negative limit is still an error, "no limit" has its own
+  name, the port documents it — measured on loader-go `v0.3.2` (`26f668b`, read-only):
+  `loader.go:57`–`:60` (negative → error, zero → `DefaultTimeout`), `NoTimeout` at `:42`. A
+  clarification under SPEC §9 (no loader has to change; -js still refuses zero) → 4.0.1, floor
+  patch; surface re-baselined alone in `a76f3a8`.
+- **Not in the SPEC:** loader-jvm's `LoadOptions` against its own design principle 3 ("no options
+  objects") is -jvm's internal exception, confirmed by the owner in -jvm (C36), not a SPEC matter.
+
 ## Edges left
 
 - UNMEASURED: a void WIT import (no fixture has one; the path is one `return undefined`).

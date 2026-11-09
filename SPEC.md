@@ -1,9 +1,15 @@
 # Universal WASM Loader — Cross-Language Specification
 
-Version: 4.0.0  
+Version: 4.0.1  
 Status: Draft  
 Reference implementation: `@jrmarcum/universal-wasm-loader` (JSR)
 
+> **4.0.1 (2026-11-09) — a clarification, no loader has to change.** §11.1 allows a port whose
+> options carry a zero value it cannot tell from "unset" (Go's `LoadOptions{}`) to read a zero
+> time limit as the 30 s default, on the owner's ruling for loader-go ("adjust for go",
+> 2026-11-08; workspace ledger C35). Every other port, the reference loader included, still
+> refuses zero.
+>
 > **4.0.0 (2026-11-07) — loud failures, decided by the owner (workspace letter H29; divergences
 > S8, S9, S10).** Only an ABSENT `.wit` selects raw exports; every other `.wit` failure — an HTTP
 > error, a network error, a timeout, a parse error, an unsupported type — is an error (§2). A WIT
@@ -386,6 +392,15 @@ are read without a limit.
    port whose HTTP client separates connect and response phases MAY apply them separately
    (e.g. 10 s connect / 30 s response, as loader-jvm does) as long as no fetch can wait longer
    than its documented total without failing.
+
+   **Port allowance — a zero-value options type (4.0.1; owner, 2026-11-08: "adjust for go").** A
+   port whose language gives every options value a zero value it cannot tell apart from "not
+   set" MAY read a zero limit as the default (30 s) instead of refusing it, provided that (a) a
+   negative limit is still an error, (b) "no limit" has its own name, never zero, and (c) the
+   port documents it. loader-go does exactly this since v0.3.0: `LoadOptions{}` and
+   `Timeout: 0` mean `DefaultTimeout` (30 s), a negative `Timeout` is an error, and `NoTimeout`
+   disables the limit. Ports with optional or nullable options (JS `undefined`, Kotlin `null`,
+   Rust `Option`, …) keep refusing zero: there, an unset limit is already distinguishable.
 2. **Cancellation.** `options.signal` (an `AbortSignal`, or the language's cancellation token)
    cancels the load; the load fails with the signal's reason. An already-cancelled signal fails
    the load before any fetch.
