@@ -6,6 +6,13 @@ closed recently with the commit that closed it.
 
 ## Open
 
+- **The reworked `publish.yml` has not run on GitHub** (2026-11-09; H30 / C30 / C34): every
+  piece was measured locally ([overview.md](overview.md) § Release flow), the whole only runs on
+  the next `v*` tag. Read that run job by job: `verify` outputs a digest, `jsr` / `npm` use the
+  pinned tools and match it, `release` creates the branch and the Release through the REST API.
+- **CI (`ci.yml`) still installs Bun, Deno and fnm with `curl | bash`** — it holds no publishing
+  credential (C30's scope), but the same pinned downloads would remove the last unpinned
+  installers. Not changed without the owner.
 - **Browser RUN is not a gate.** Measured by hand at every release since 2026-10-26 (headless
   Chrome, Edge, Firefox, Firefox ESR; 🔒 owner 2026-10-26: **Bun stands for Safari** — it runs
   JavaScriptCore; Bun's `fetch` is its own, so Safari's streaming-compile path is not exercised):

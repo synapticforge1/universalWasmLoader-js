@@ -43,6 +43,17 @@ Rules, not lessons (the lessons are [best-practices.md](best-practices.md)). The
    policy turned any `uses:` into a `startup_failure`; the `synapticforge1` organization (since
    2026-10-21) has "the same policy as before, and … as was used with binaryang" (owner), and
    `run:` works under any policy ([overview.md](overview.md) § Release flow).
+9. 🔒 **No `gh`, in CI too** (owner, 2026-11-08, letter H30): check the repo instead (`git
+   ls-remote`, the repo's files, registry APIs); a workflow talks to GitHub through its REST API
+   from a Bun step with `GITHUB_TOKEN` (`scripts/github-release.ts`); a web-UI task is an OWNER
+   item, never "blocked on gh".
+10. 🔒 **A publishing job runs nothing it does not have to** (owner, 2026-11-09, ledgers C30 /
+    C34): a job holding `id-token: write` runs no installer script, no dependency code (`bun
+    install` only with `--ignore-scripts`), no tests and no build of its own; every clone is
+    token-less; every tool is downloaded by version and checked by sha256, each pin matched
+    against two sources (our own hash + the publisher's sums or GitHub's release digest). A pin
+    is changed only that way, never copied from memory. `scripts/check-github-release.ts` checks
+    the release step ([overview.md](overview.md) § Release flow).
 
 ## Boundaries
 
