@@ -25,8 +25,11 @@ closed recently with the commit that closed it.
   shipped source has no top-level `node:` import. Same gap in binaryang.
 - **A void WIT import is UNMEASURED** (no fixture has one): SPEC §4 says its callback's return
   value is ignored; the code path is one `return undefined` ([spec-4.0.0.md](spec-4.0.0.md)).
-- **The nine ports re-align to SPEC 4.0.0** — ledger row **C29** (from loader-js, 2026-11-07).
-  This repo, as its creator, re-derives each port's answer and closes the row.
+- **C29 (the nine ports on SPEC 4.0.0): open for -v only** (2026-11-09). All nine answered and
+  released; verified read-only here (tag = claimed commit on GitHub, behaviour commit inside it,
+  SPEC 4.0.0 + refusal tests at the tag, registry, green CI on the tag commit) and closed for the
+  other eight. -v: one run of its suite from a clean clone of `v2.0.0` gave 85 / 86 asserts —
+  not investigated (owner: keep to this project); loader-v re-runs and answers in the row.
 - **Publishing still needs Deno** (`deno publish`, F2 of binaryang's exit guide). By design; JSR's
   to solve before ~2027-10. Re-check when JSR ships a non-Deno publisher that keeps provenance.
 - **Rule 3's CONSUMER half** (H6): no known consumer runs a suite ([compat-gate.md](compat-gate.md)).
