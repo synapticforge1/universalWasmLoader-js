@@ -118,9 +118,12 @@ self-test, `npm:prove`, JSR dry run) and outputs the proved `dist/`'s digest; `j
 a `bun install --ignore-scripts` for `deno publish`'s type check, `npm` a dependency-free
 `scripts/npm/build.ts` that must reproduce verify's digest — and each skips an upload the
 registry already has, so "Re-run failed jobs" is safe after a failure past the upload; `release`
-{contents: write} runs once verify passed, whatever `jsr` / `npm` exited with, and
-`scripts/github-release.ts` (REST API, no `gh`) waits for both registries, requires the tag to
-peel to `github.sha`, then creates `release/<tag>` and the GitHub Release. npm "free" means the
+{contents: write} runs once verify passed, whatever `jsr` / `npm` exited with, checks out
+nothing, and runs `scripts/github-release.ts` fetched alone at `github.sha` (REST API, no `gh`;
+H32's order since 2026-11-09): it waits for both registries, requires the tag to peel to
+`github.sha`, stops with NO write when the page exists, else creates `release/<tag>` and the
+page (JSR + npm links on top of generated notes), reads it back and peels the tag again; every
+request has a 30 s limit (18-check self-test, five mutants caught). npm "free" means the
 version is absent from the package document's `time` (a removed number counts as taken — S3D's
 measurement; this package has none, measured 2026-11-09). Every clone is token-less; tools are
 pinned by version + sha256 (Bun 1.4.4, Deno 2.9.8, Node 24.21.0 with npm 11.19.0). Measured
