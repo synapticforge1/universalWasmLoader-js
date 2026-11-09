@@ -131,7 +131,8 @@ wrong commit and an absent tag), the tag peel (lightweight here, annotated on lo
 `bash -eo pipefail`), and the digest (`npm:prove`'s `dist/` = `build.ts`'s, 12 files). **First
 run: 2.0.1, 2026-11-09** — every job did its part (the pinned installs, verify's digest matched
 by the npm job, the REST release step); only npm's provenance read-back was too short (now 10
-minutes). Not yet exercised: the re-run skips (an owner re-run of 42633902729 would).
+minutes). The owner's re-run of the npm job (attempt 2, green) exercised the npm skip; JSR's
+skip is the one path not yet run on GitHub.
 
 **The workflows use only `run:` steps — never `uses:` (third-party actions).** Under the
 `jrmarcum` owner the Actions policy permitted only actions owned by `jrmarcum`. 🔒 **For the
@@ -150,7 +151,7 @@ the one **at the tagged commit**, so the tag must point at a commit that already
 **Published:** **2.0.1, 2026-11-09** (owner: "release"; a patch — only the shipped README
 changed): `Release v2.0.1` `771ac03` = tag `v2.0.1`; publish run 42633902729 — the first run of
 the 2026-11-09 job graph: `verify` / `jsr` / `release` green, `npm` published but its provenance
-read-back timed out at 3 minutes ([npm.md](npm.md) § the table). Read back independently: JSR
+read-back timed out at 3 minutes; green after the owner's re-run ([npm.md](npm.md) § the table). Read back independently: JSR
 rekorLogId **3766026937**, latest 2.0.1, score 100; npm latest 2.0.1, SLSA v1, 11 files = the
 tag; GitHub: tag, `release/v2.0.1` and the Release (`github-release.ts --dry-run`); a fresh
 `npm install …@2.0.1` on Node 24 loads `math_50` and gives the three refusals. Before it,
