@@ -1,5 +1,5 @@
 {
-  "spec": "4.0.0",
+  "spec": "4.0.1",
   "exports": {
     ".": "./universal-wasm-loader.js"
   },

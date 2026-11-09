@@ -1,6 +1,6 @@
 # Universal WASM Loader — Cross-Language Specification
 
-Version: 4.0.0  
+Version: 4.0.1  
 Status: Draft  
 Reference implementation: `@jrmarcum/universal-wasm-loader` (JSR)
 
