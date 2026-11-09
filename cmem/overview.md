@@ -127,7 +127,8 @@ request has a 30 s limit (18-check self-test, five mutants caught). npm "free" m
 version is absent from the package document's `time` (a removed number counts as taken — S3D's
 measurement; this package has none, measured 2026-11-09). Every clone is token-less; tools are
 pinned by version + sha256 (Bun 1.4.4, Deno 2.9.8, Node 24.21.0 with npm 11.19.0). Measured
-locally 2026-11-09, NOT yet on GitHub: the release script (13-check self-test, two mutants
+locally 2026-11-09, before its first run: the release script (then a 13-check self-test, 18
+since the H32 rework the same day; two mutants, five since
 caught, and a read-only dry run against the real GitHub / JSR / npm for `v2.0.0`, `v1.1.2`, a
 wrong commit and an absent tag), the tag peel (lightweight here, annotated on loader-c's
 `v1.1.2`), the jq expressions, the pinned installs (Git Bash; a wrong pin stops the step under
