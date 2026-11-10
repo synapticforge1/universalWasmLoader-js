@@ -259,13 +259,15 @@ It also runs the previous release's tests against the new code.
 
 ## Publishing
 
-One tag push (`v*`) publishes to JSR and npm in parallel from GitHub Actions, with OIDC
-provenance on both (npm through trusted publishing) — no stored token — after one job has run
-every check for both; then it creates the GitHub Release. The jobs that hold the publishing
-credential run only tools pinned by version and sha256.
+Releases are made by GitHub Actions, never from a developer's machine, in this order: CI checks
+the pushed commit, then CI creates the version tag, then the GitHub Release page from that tag,
+then publishes to JSR and npm in parallel, with OIDC provenance on both (npm through trusted
+publishing) — no stored token. The jobs that hold the publishing credential run only tools pinned
+by version and sha256.
 
-To release a new version: `bun run bump [patch|minor|major]` (raises `version` in `jsr.json`, the
-package manifest), then `bun run release`.
+To release a new version: `bun run bump patch|minor|major` (the level is required; it checks the
+API floor, raises `version` in `jsr.json` and commits `bump to vX.Y.Z`), then `bun run release`
+(it checks, then pushes `main` — no tag; CI does the rest).
 
 ## Development
 

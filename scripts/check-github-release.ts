@@ -1,8 +1,8 @@
 /**
- * Self-test of `scripts/github-release.ts` against a mock GitHub REST API, JSR and npm on one
- * local `node:http` server (workspace letters H30 / H32, 2026-11-09). Every refusal path is checked
- * to send NO write; the happy path is checked to send exactly the two writes, with the token and
- * the registry links; an existing page is checked to need no write at all.
+ * Self-test of `scripts/github-release.ts` (`tag` and `page`) against a mock GitHub REST API on a
+ * local `node:http` server (workspace letters H30 / H32 / H33, 2026-11-10). Every refusal path is
+ * checked to send NO write; each happy path to send exactly its writes, with the token; a re-run
+ * to send none; a stalled API to time out, under a guard of the self-test's own.
  *
  * ```sh
  * bun run release:selftest
@@ -11,25 +11,26 @@
 import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import process from "node:process";
-import { type ReleaseConfig, run } from "./github-release.ts";
+import { type Command, type ReleaseConfig, run } from "./github-release.ts";
 
 const SHA = "1".repeat(40);
 const OTHER = "2".repeat(40);
 const TAG_OBJ = "3".repeat(40);
+const NEW_OBJ = "4".repeat(40);
 const REPO = "o/r";
 
 interface World {
   tag: "light" | "annotated" | "absent" | "other";
-  tagAfterPost: "same" | "moved";
-  branch: "absent" | "here" | "elsewhere";
+  movesAfterWrite: boolean;
   release: "absent" | "exists";
-  jsr: number;
-  npm: number;
+  postTagObject: number;
   postRelease: number;
-  stall: "" | "release-read";
+  stall: "" | "tag-read" | "release-read";
 }
-interface Seen {
-  writes: { path: string; body: unknown; auth: string | undefined }[];
+interface Write {
+  path: string;
+  body: unknown;
+  auth: string | undefined;
 }
 
 function body(req: IncomingMessage): Promise<unknown> {
@@ -40,44 +41,39 @@ function body(req: IncomingMessage): Promise<unknown> {
   });
 }
 
-async function scenario(world: World, over: Partial<ReleaseConfig> = {}) {
-  const seen: Seen = { writes: [] };
-  let posted = false;
+async function scenario(command: Command, world: World, over: Partial<ReleaseConfig> = {}) {
+  const writes: Write[] = [];
+  let wrote = false;
   const server = createServer(async (req, res) => {
-    const url = req.url ?? "";
+    const p = (req.url ?? "").replace(`/gh/repos/${REPO}`, "");
     const send = (status: number, json?: unknown) => {
       res.writeHead(status, { "content-type": "application/json" }).end(json === undefined ? "" : JSON.stringify(json));
     };
-    if (url.startsWith("/jsr/")) return send(world.jsr, {});
-    if (url.startsWith("/npm/")) return send(world.npm, {});
-    const p = url.replace(`/gh/repos/${REPO}`, "");
     if (req.method === "POST") {
-      seen.writes.push({ path: p, body: await body(req), auth: req.headers.authorization });
+      writes.push({ path: p, body: await body(req), auth: req.headers.authorization });
+      wrote = true;
+      if (p === "/git/tags") return world.postTagObject === 201 ? send(201, { sha: NEW_OBJ }) : send(world.postTagObject, { message: "mock" });
       if (p === "/git/refs") {
-        world.branch = "here";
+        world.tag = "annotated";
         return send(201, {});
       }
       if (p === "/releases") {
-        posted = true;
         if (world.postRelease === 201) world.release = "exists";
         return send(world.postRelease, { message: "mock" });
       }
       return send(404);
     }
-    if (p === "/git/ref/tags/v2.0.1") {
+    if (p === "/git/ref/tags/v2.0.3") {
+      if (world.stall === "tag-read") return;
       if (world.tag === "absent") return send(404);
-      const moved = posted && world.tagAfterPost === "moved";
-      if (world.tag === "annotated" && !moved) return send(200, { object: { type: "tag", sha: TAG_OBJ } });
-      return send(200, { object: { type: "commit", sha: world.tag === "other" || moved ? OTHER : SHA } });
+      if (wrote && world.movesAfterWrite) return send(200, { object: { type: "commit", sha: OTHER } });
+      if (world.tag === "annotated") return send(200, { object: { type: "tag", sha: TAG_OBJ } });
+      return send(200, { object: { type: "commit", sha: world.tag === "other" ? OTHER : SHA } });
     }
     if (p === `/git/tags/${TAG_OBJ}`) return send(200, { object: { type: "commit", sha: SHA } });
-    if (p === "/git/ref/heads/release/v2.0.1") {
-      if (world.branch === "absent") return send(404);
-      return send(200, { object: { sha: world.branch === "here" ? SHA : OTHER } });
-    }
-    if (p === "/releases/tags/v2.0.1") {
-      if (world.stall === "release-read") return; // never answers
-      return world.release === "exists" ? send(200, { tag_name: "v2.0.1", draft: false, html_url: "u" }) : send(404);
+    if (p === "/releases/tags/v2.0.3") {
+      if (world.stall === "release-read") return;
+      return world.release === "exists" ? send(200, { tag_name: "v2.0.3", draft: false, html_url: "u" }) : send(404);
     }
     return send(404);
   });
@@ -85,18 +81,15 @@ async function scenario(world: World, over: Partial<ReleaseConfig> = {}) {
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const lines: string[] = [];
   const cfg: ReleaseConfig = {
+    command,
     repository: REPO,
     sha: SHA,
-    tag: "v2.0.1",
+    tag: "v2.0.3",
     token: "tok",
     dryRun: false,
     jsrPackage: "@s/p",
     npmPackage: "@n/p",
     githubApi: `${base}/gh`,
-    jsrApi: `${base}/jsr`,
-    npmRegistry: `${base}/npm`,
-    waitAttempts: 2,
-    waitMs: 1,
     requestMs: 2000,
     log: (l) => lines.push(l),
     ...over,
@@ -111,62 +104,63 @@ async function scenario(world: World, over: Partial<ReleaseConfig> = {}) {
         r(-1);
       }, 8000)),
     ]);
-    return { code, seen, lines, ms: Date.now() - started };
+    return { code, writes, lines, ms: Date.now() - started };
   } finally {
     server.closeAllConnections?.();
     server.close();
   }
 }
 
-const ok: World = { tag: "light", tagAfterPost: "same", branch: "absent", release: "absent", jsr: 200, npm: 200, postRelease: 201, stall: "" };
+const base: World = { tag: "absent", movesAfterWrite: false, release: "absent", postTagObject: 201, postRelease: 201, stall: "" };
 let failed = 0;
-async function check(name: string, world: World, want: { code: number; writes: string[]; line?: RegExp }, over?: Partial<ReleaseConfig>) {
-  const r = await scenario({ ...world }, over);
-  const writes = r.seen.writes.map((w) => w.path);
+function verdict(ok: boolean, name: string, detail: string) {
+  if (!ok) failed++;
+  console.log(`${ok ? "ok  " : "FAIL"} ${name}${ok ? "" : `\n     ${detail}`}`);
+}
+async function check(command: Command, name: string, world: Partial<World>, want: { code: number; writes: string[]; line?: RegExp }, over?: Partial<ReleaseConfig>) {
+  const r = await scenario(command, { ...base, ...world }, over);
+  const writes = r.writes.map((w) => w.path);
   const good = r.code === want.code && JSON.stringify(writes) === JSON.stringify(want.writes) &&
     (!want.line || r.lines.some((l) => want.line?.test(l)));
-  if (!good) failed++;
-  console.log(`${good ? "ok  " : "FAIL"} ${name}: exit ${r.code}, writes [${writes.join(", ")}]${good ? "" : `\n     ${r.lines.join("\n     ")}`}`);
+  verdict(good, `${command}: ${name} → exit ${r.code}, writes [${writes.join(", ")}]`, r.lines.join("\n     "));
   return r;
 }
 
-const happy = await check("lightweight tag, nothing yet → branch + release created", ok, { code: 0, writes: ["/git/refs", "/releases"], line: /release v2.0.1: created/ });
-const auths = happy.seen.writes.map((w) => w.auth);
-const refBody = happy.seen.writes[0]?.body as { ref?: string; sha?: string } | undefined;
-const relBody = happy.seen.writes[1]?.body as { tag_name?: string; generate_release_notes?: boolean; body?: string } | undefined;
-if (auths.some((a) => a !== "Bearer tok") || refBody?.ref !== "refs/heads/release/v2.0.1" || refBody.sha !== SHA ||
-  relBody?.tag_name !== "v2.0.1" || relBody.generate_release_notes !== true ||
-  !relBody.body?.includes("https://jsr.io/@s/p@2.0.1") || !relBody.body.includes("https://www.npmjs.com/package/@n/p/v/2.0.1")) {
-  failed++;
-  console.log(`FAIL write bodies / token: ${JSON.stringify(happy.seen.writes)}`);
-} else {
-  console.log("ok   write bodies: Bearer token; ref = refs/heads/release/v2.0.1 at the commit; tag_name, generated notes, JSR + npm links");
-}
-if (!happy.lines.some((l) => /after the release/.test(l))) {
-  failed++;
-  console.log("FAIL the tag was not peeled again after the release");
-} else {
-  console.log("ok   the tag is peeled again after the release");
-}
-await check("annotated tag is peeled to the commit", { ...ok, tag: "annotated" }, { code: 0, writes: ["/git/refs", "/releases"] });
-await check("re-run: branch and release exist → no write", { ...ok, branch: "here", release: "exists" }, { code: 0, writes: [], line: /nothing written/ });
-await check("page exists, branch missing → done, NO write", { ...ok, branch: "absent", release: "exists" }, { code: 0, writes: [], line: /nothing written/ });
-await check("tag absent → refused, no write", { ...ok, tag: "absent" }, { code: 1, writes: [], line: /does not exist on GitHub/ });
-await check("tag at another commit → refused, no write", { ...ok, tag: "other" }, { code: 1, writes: [], line: /not this run's commit/ });
-await check("tag moved after the release → exit 1", { ...ok, tagAfterPost: "moved" }, { code: 1, writes: ["/git/refs", "/releases"], line: /after the release, not this run's commit/ });
-await check("branch exists elsewhere → refused, no release", { ...ok, branch: "elsewhere" }, { code: 1, writes: [], line: /exists at 2{40}/ });
-await check("JSR lacks the version → refused, no write", { ...ok, jsr: 404 }, { code: 1, writes: [], line: /JSR @s\/p@2.0.1 does not serve/ });
-await check("npm lacks the version → refused, no write", { ...ok, npm: 404 }, { code: 1, writes: [], line: /npm @n\/p@2.0.1 does not serve/ });
-await check("POST /releases refused (422) → exit 1", { ...ok, postRelease: 422 }, { code: 1, writes: ["/git/refs", "/releases"], line: /HTTP 422/ });
-const stalled = await check("stalled API → timed out, no write", { ...ok, stall: "release-read" }, { code: 1, writes: [], line: /timed out after 300 ms/ }, { requestMs: 300 });
-if (stalled.ms > 5000) {
-  failed++;
-  console.log(`FAIL the stall took ${stalled.ms} ms`);
-}
-await check("--dry-run → checks only, no write", ok, { code: 0, writes: [], line: /would be created/ }, { dryRun: true, token: undefined });
-await check("no token and not a dry run → refused before any request", ok, { code: 1, writes: [], line: /GITHUB_TOKEN is not set/ }, { token: undefined });
-await check("not a release tag → refused", ok, { code: 1, writes: [], line: /not a release tag/ }, { tag: "main" });
-await check("unscoped package name → refused", ok, { code: 1, writes: [], line: /not scoped package names/ }, { npmPackage: "p" });
+// tag (U6)
+const made = await check("tag", "no tag yet → annotated tag created and read back", {}, { code: 0, writes: ["/git/tags", "/git/refs"], line: /created \(annotated/ });
+const tagBody = made.writes[0]?.body as { tag?: string; object?: string; type?: string } | undefined;
+const refBody = made.writes[1]?.body as { ref?: string; sha?: string } | undefined;
+verdict(made.writes.every((w) => w.auth === "Bearer tok") && tagBody?.tag === "v2.0.3" && tagBody.object === SHA && tagBody.type === "commit" &&
+  refBody?.ref === "refs/tags/v2.0.3" && refBody.sha === NEW_OBJ, "tag: bodies — Bearer token; tag object on the commit; ref to the tag object", JSON.stringify(made.writes));
+await check("tag", "re-run: tag already at this commit → no write", { tag: "annotated" }, { code: 0, writes: [], line: /exists at this commit, nothing written/ });
+await check("tag", "tag at another commit → refused, no write", { tag: "other" }, { code: 1, writes: [], line: /a published tag never moves/ });
+await check("tag", "tag reads another commit after the write → exit 1", { movesAfterWrite: true }, { code: 1, writes: ["/git/tags", "/git/refs"], line: /after creating it, not this run's commit/ });
+await check("tag", "POST /git/tags refused (422) → exit 1, no ref", { postTagObject: 422 }, { code: 1, writes: ["/git/tags"], line: /HTTP 422/ });
+await check("tag", "--dry-run → no write", {}, { code: 0, writes: [], line: /would be created/ }, { dryRun: true, token: undefined });
+const stalledTag = await check("tag", "stalled API → timed out, no write", { stall: "tag-read" }, { code: 1, writes: [], line: /timed out after 300 ms/ }, { requestMs: 300 });
+verdict(stalledTag.ms < 5000, "tag: the stall ends by its own limit", `${stalledTag.ms} ms`);
+
+// page (U7)
+const page = await check("page", "tag at this commit, no page → page created, read back, peeled again", { tag: "annotated" }, { code: 0, writes: ["/releases"], line: /release v2.0.3: created/ });
+const relBody = page.writes[0]?.body as { tag_name?: string; generate_release_notes?: boolean; body?: string } | undefined;
+verdict(page.writes[0]?.auth === "Bearer tok" && relBody?.tag_name === "v2.0.3" && relBody.generate_release_notes === true &&
+  !!relBody.body?.includes("https://jsr.io/@s/p@2.0.3") && !!relBody.body?.includes("https://www.npmjs.com/package/@n/p/v/2.0.3") &&
+  page.lines.some((l) => /after the release/.test(l)), "page: body — token, tag_name, generated notes, JSR + npm links; the tag peeled again", JSON.stringify(page.writes));
+await check("page", "lightweight tag at this commit also works", { tag: "light" }, { code: 0, writes: ["/releases"] });
+await check("page", "re-run: page exists → no write", { tag: "annotated", release: "exists" }, { code: 0, writes: [], line: /nothing written/ });
+await check("page", "tag absent → refused, no write", { tag: "absent" }, { code: 1, writes: [], line: /does not exist on GitHub/ });
+await check("page", "tag at another commit → refused, no write", { tag: "other" }, { code: 1, writes: [], line: /not this run's commit/ });
+await check("page", "tag moved after the release → exit 1", { tag: "annotated", movesAfterWrite: true }, { code: 1, writes: ["/releases"], line: /after the release, not this run's commit/ });
+await check("page", "POST /releases refused (422) → exit 1", { tag: "annotated", postRelease: 422 }, { code: 1, writes: ["/releases"], line: /HTTP 422/ });
+const stalledPage = await check("page", "stalled API → timed out, no write", { tag: "annotated", stall: "release-read" }, { code: 1, writes: [], line: /timed out after 300 ms/ }, { requestMs: 300 });
+verdict(stalledPage.ms < 5000, "page: the stall ends by its own limit", `${stalledPage.ms} ms`);
+await check("page", "--dry-run → no write", { tag: "annotated" }, { code: 0, writes: [], line: /would be created/ }, { dryRun: true, token: undefined });
+
+// both
+await check("page", "no token and not a dry run → refused before any request", {}, { code: 1, writes: [], line: /GITHUB_TOKEN is not set/ }, { token: undefined });
+await check("tag", "not a release tag → refused", {}, { code: 1, writes: [], line: /not a release tag/ }, { tag: "main" });
+await check("tag", "unscoped package name → refused", {}, { code: 1, writes: [], line: /not scoped package names/ }, { npmPackage: "p" });
+await check("tag", "unknown command → refused", {}, { code: 1, writes: [], line: /unknown command/ }, { command: "push" as Command });
 
 console.log(failed === 0 ? "github-release self-test: all checks passed" : `github-release self-test: ${failed} FAILED`);
 process.exit(failed === 0 ? 0 : 1);

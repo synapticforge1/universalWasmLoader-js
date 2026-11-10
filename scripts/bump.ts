@@ -1,27 +1,41 @@
 /**
- * Increments the `version` field in jsr.json, the package's one manifest (Bun migration,
- * 2026-10-12; deno.json before that).
+ * Raises the `version` field in jsr.json, the package's one manifest (Bun migration, 2026-10-12;
+ * deno.json before that), and commits it on its own as `bump to vX.Y.Z` (workspace
+ * `release-process.md` § 5, U1–U3, owner 2026-11-10).
  *
- * Run via:  bun run bump            # patch:  1.0.5 → 1.0.6
- *           bun run bump minor      # minor:  1.0.5 → 1.1.0
- *           bun run bump major      # major:  1.0.5 → 2.0.0
+ * Run via:  bun run bump patch      # 1.0.5 → 1.0.6
+ *           bun run bump minor      # 1.0.5 → 1.1.0
+ *           bun run bump major      # 1.0.5 → 2.0.0
  *
- * GATED (compatibility gate, letter H6, 2026-10-12): before touching the version it runs
- * `compat.ts` against the last release tag and REFUSES when the bump is below the surface floor,
- * when a patch/minor meets red previous-tag tests, or when `api-surface.json` is stale.
+ * The level is the owner's and is REQUIRED: there is no default (U1).
+ *
+ * GATED: it refuses a tree with any change or untracked file (the bump is its own commit, U2 / U3);
+ * then it runs `compat.ts` against the last release tag (letter H6) and REFUSES when the bump is
+ * below the surface floor, when a patch/minor meets red previous-tag tests, or when
+ * `api-surface.json` is stale. `bun run release` then pushes `main`; CI tags and publishes.
  *
  * Written on `node:` builtins only, so it runs on Bun, Node and Deno alike.
  */
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { judge, lastTag } from "./compat.ts";
 
+const root = fileURLToPath(new URL("..", import.meta.url));
 const manifestPath = fileURLToPath(new URL("../jsr.json", import.meta.url));
 
-const kind = (process.argv[2] ?? "patch").toLowerCase();
+const git = (...args: string[]) => spawnSync("git", args, { cwd: root, encoding: "utf8" });
+
+const kind = (process.argv[2] ?? "").toLowerCase();
 if (kind !== "patch" && kind !== "minor" && kind !== "major") {
-  console.error(`❌ bump: unknown release kind "${kind}" — use patch | minor | major`);
+  console.error(`❌ bump: the level is required — bun run bump patch | minor | major${kind ? ` (got "${kind}")` : ""}`);
+  process.exit(1);
+}
+
+const dirty = git("status", "--porcelain", "--untracked-files=all");
+if (dirty.status !== 0 || dirty.stdout.trim() !== "") {
+  console.error(`❌ bump: the tree is not clean (the bump is its own commit):\n${dirty.stdout || dirty.stderr}`);
   process.exit(1);
 }
 
@@ -55,4 +69,12 @@ const to = `${major}.${minor}.${patch}`;
 // Targeted replace so the rest of jsr.json's formatting is untouched.
 const updated = text.replace(/("version"\s*:\s*)"\d+\.\d+\.\d+"/, `$1"${to}"`);
 writeFileSync(manifestPath, updated);
-console.log(`✅ jsr.json → ${to}  (${kind} bump from ${from})`);
+
+const add = git("add", "jsr.json");
+const commit = add.status === 0 ? git("commit", "-q", "-m", `bump to v${to}`) : add;
+if (commit.status !== 0) {
+  console.error(`❌ bump: jsr.json says ${to} but the commit failed:\n${commit.stderr || commit.stdout}`);
+  process.exit(1);
+}
+console.log(`✅ jsr.json → ${to}  (${kind} bump from ${from}), committed as "bump to v${to}"`);
+console.log("   next: bun run release   (pushes main; CI checks, tags, makes the page, publishes)");

@@ -11,7 +11,11 @@ Rules, not lessons (the lessons are [best-practices.md](best-practices.md)). The
 - **Messages go through a file**: `git commit -F <file>` written with `Write`; never a heredoc,
   never `-m` with backticks or `$`.
 - **Nothing is pushed, tagged or published unless the owner says so.** The `jsr.json` version line
-  stays at the released version until a deliberate `bun run bump`.
+  stays at the released version until a deliberate `bun run bump <level>`. 🔒 **Since 2026-11-10
+  the version line ARMS a release:** `publish.yml` runs on every push of `main`, and a `jsr.json`
+  version with no tag on GitHub is a release — CI tags it and publishes. So a bump happens only on
+  the owner's "release", and only through `bun run bump` → `bun run release`; no tag is ever made
+  or pushed from a machine ([release.md](release.md)).
 - **Prefer a new commit over `--amend`.** Never `git checkout <file>` to drop a probe; copy aside.
 
 ## The gate
@@ -22,7 +26,8 @@ Rules, not lessons (the lessons are [best-practices.md](best-practices.md)). The
   `test:deno`; `bun run lts` for every Node LTS line). Run on the COMMITTED tree, after the last edit.
 - **Diff the output, not the exit code**: 73 tests on every runtime (2026-11-07; 28 from 2026-10-26, 24 from 2026-10-12); a lower count is a
   failure even at exit 0.
-- **Every bump goes through `bun run bump`** (gated, [compat-gate.md](compat-gate.md)). An intended
+- **Every bump goes through `bun run bump <level>`** (the level is required; gated,
+  [compat-gate.md](compat-gate.md); it commits `bump to vX.Y.Z` itself). An intended
   surface change re-baselines `api-surface.json` in its own commit, with the reason, first.
 - **Invert every new test or gate** before trusting it, in a scratch copy where possible.
 
@@ -92,3 +97,22 @@ Rules, not lessons (the lessons are [best-practices.md](best-practices.md)). The
   `.wasm` carries build paths). 2026-10-26: no hit at HEAD in text or binary files; H25 measured
   no drive path in any commit of any ref, so no history purge is needed here.
 - `.claude/settings.local.json` is per-machine and gitignored (2026-10-26, H25 (b)'s lesson).
+
+## Owner commands: "commit", "push", "release" (owner, 2026-11-10)
+
+🔒 Written into every project by the workspace session on the owner's direction (2026-11-10:
+"please write that into each project"; workspace `cmem/working-rules.md` Tooling rule 12, letter
+H34). When the owner says:
+
+- **"commit"** — first run "update the project memory files" (re-derive this repo's `cmem/` from
+  its current state), then commit to the branch being worked on. Nothing is pushed.
+- **"push"** — perform "commit", then merge the branch into `main`, then push `main` (and the
+  working branch) to GitHub (`origin`) and read it back with `git ls-remote`.
+- **"release"** — perform "push", then the release process: the workspace's
+  `cmem/release-process.md` §§ 5–8 — CI checks first, then CI pushes the tag, then the GitHub
+  Release page from the tag, then the publish to the registry — recorded in `cmem/release.md`
+  § "Release History" (newest first, a summary of what changed). The level (patch / minor /
+  major) is the owner's: ask if it was not given.
+
+Each command includes the one before it, and none goes further than its own word (a "commit"
+never pushes, a "push" never releases). This repo's own gate and merge rules apply at each step.

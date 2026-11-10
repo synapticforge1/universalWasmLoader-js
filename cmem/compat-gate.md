@@ -8,7 +8,7 @@ gate"): "backward compatible" is a gate result, never a judgment made at bump ti
 | Piece | File | Runs in |
 | --- | --- | --- |
 | Rule 1, the SURFACE | `scripts/surface.ts` → `api-surface.json` (committed) | `bun run surface` writes it; `--check` in `bun run gate`, CI and publish |
-| Rule 2, the FLOOR | `scripts/compat.ts` `floorOf` | `bun run bump` (refuses below it), `bun run compat` (report), `compat --release` on the tag (publish.yml, blocking) |
+| Rule 2, the FLOOR | `scripts/compat.ts` `floorOf` | `bun run bump <level>` (refuses below it), `bun run compat` (report), `compat --release` on the candidate commit — in `bun run release` and in `publish.yml`'s `checks`, before CI tags it (blocking; since 2026-11-10, on the tag before) |
 | Rule 3, BEHAVIOUR | `scripts/compat.ts` `previousTests` | same places; required green for a patch or minor |
 | Rule 4, deprecate first | README `### ⚠️ Breaking Changes` table | by hand, when a deprecation lands |
 | Rule 5, re-baseline alone | CI `surface --check` | an intended surface change is its own commit, with the reason |

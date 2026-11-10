@@ -25,7 +25,8 @@ The JS/TS **reference implementation** of the Universal WASM Loader, published t
 ## Three things that bite immediately
 
 1. **Bun is the toolchain** (since 2026-10-12): `bun run gate`, `bun run test` (also `test:node`,
-   `test:deno`), `bun run bump <kind>`, `bun run release`. `jsr.json` is the one manifest. Publishing
+   `test:deno`), `bun run bump <level>` (required), `bun run release` (pushes `main` only; CI tags
+   and publishes — `cmem/release.md`). `jsr.json` is the one manifest. Publishing
    still runs `deno publish` in CI.
 2. **Every bump is gated** (`cmem/compat-gate.md`): the surface floor and the previous tag's tests;
    an intended API change re-baselines `api-surface.json` in its OWN commit first.

@@ -47,7 +47,10 @@ clone without `typescript` installed made every type check fail for the wrong re
 the same time. publishing at different times is an issue." `publish.yml` from then until
 2026-11-09 (the table below; 🔁 **reworked 2026-11-09** for H30 / C30 / C34 — no `gh`, the
 `id-token` jobs run only pinned tools, npm rebuilds `dist/` to verify's digest, re-runs skip an
-upload already made, `release` follows the registries: [overview.md](overview.md) § Release flow):
+upload already made, `release` follows the registries; 🔁 **and again 2026-11-10** for H33 — a push
+of `main` (not a tag) starts it, `checks` → CI makes the tag → the page → JSR ∥ npm, and the
+recovery dispatch is gone (a re-run of the failed job replaces it): [release.md](release.md)
+§ "How a release runs"). The 2026-10-21 shape, kept as history:
 
 | job | does |
 | --- | --- |
@@ -62,12 +65,16 @@ upload already made, `release` follows the registries: [overview.md](overview.md
 - **Not atomic**: the registries cannot be published together. Everything that can fail on our
   side fails in `verify`; a registry failing during its own publish leaves a split, fixed by
   "Re-run failed jobs" on that job (never re-tag: both are immutable).
-- **`workflow_dispatch` (input `tag`) = recovery only**: the npm job alone, for a tag JSR HAS and
+- ~~**`workflow_dispatch` (input `tag`) = recovery only**~~ (removed 2026-11-10; "Re-run failed
+  jobs" skips whatever is published): the npm job alone, for a tag JSR HAS and
   npm LACKS (both checked), proving the tarball itself. JSR is never published by dispatch
   (binaryang's record: JSR's OIDC actor on a dispatched run differs).
-- `deno publish` needs `node_modules`: `tsconfig.json`'s `types: ["node"]` makes its type check
-  look for `@types/node` ("Could not find @types/node", measured 2026-10-21), so the `jsr` job runs
-  `bun install` first.
+- `deno publish` needs `node_modules` IN A FULL CHECKOUT: `tsconfig.json`'s `types: ["node"]`
+  makes its type check look for `@types/node` ("Could not find @types/node", measured 2026-10-21).
+  🔁 **2026-11-10: not in the published tree** — `jsr.json` + its `publish.include` alone (no
+  `tsconfig.json`, `package.json` or `node_modules`) passes `deno publish --dry-run`, and a planted
+  type error fails it (measured), so the `jsr` job now publishes that sparse tree with nothing
+  installed.
 
 ## ✅ 1.1.0 on npm, published by hand (2026-10-21T23:03:05Z)
 
@@ -151,27 +158,13 @@ files are byte-identical to the `v1.1.1` tag (git blob ids). **JSR and npm now h
 The first trusted publish in the workspace (binaryang's had not run yet, 2026-10-21). The next tag
 push was the first test of the one-run design (`verify` → `jsr` ∥ `npm` → `release`).
 
-### ✅ Every release since: one tag, both registries, read back
+### Every release since: [release.md](release.md) § "Release History"
 
-| Version | Date | Publish run | JSR rekorLogId | npm |
-| --- | --- | --- | --- | --- |
-| 1.1.2 | 2026-10-26 | 40380578962 (the first full one-run publish) | 3493886393 | SLSA v1, 11 files = the tag |
-| 2.0.0 | 2026-11-07 | 42394507328 | 3742189142 | SLSA v1, 11 files = the tag |
-| 2.0.1 | 2026-11-09 | 42633902729 (green on attempt 2, see below) | 3766026937 | SLSA v1, 11 files = the tag |
-| 2.0.2 | 2026-11-09 | 42663185314 (green, every job; npm's provenance visible after 77 s) | 3767290265 | SLSA v1, 11 files = the tag |
-
-**2.0.1's run — the first of the 2026-11-09 job graph:** `verify`, `jsr` and `release` green;
-the `npm` job published, then its provenance read-back gave up after 3 minutes (12 × 15 s) — the
-attestation became visible later (read back here minutes after). The design held: `release` ran
-anyway, waited for both registries, and created `release/v2.0.1` and the GitHub Release. The
-read-back now waits up to 10 minutes. ✅ **The owner re-ran the failed job** (attempt 2, run
-green): "Publish to npm (unless npm already has the version)" succeeded in 0 s (attempt 1: 6 s,
-the upload), the provenance read-back in 1 s, and npm still lists 2.0.1 once — the first measured
-"already has the version" skip (a second upload would have been refused by npm, so success means
-the skip ran; the job log needs sign-in, so its message is not read). JSR's skip: not yet needed.
-
-Both read back independently (JSR `api.jsr.io`, registry.npmjs.org, the tarball's files hashed as
-git blobs against the tag) and installed fresh with `npm install` on Node 24.
+The table of runs, Rekor ids and read-backs that stood here (1.1.2, 2.0.0, 2.0.1 with its re-run, 2.0.2)
+moved to `release.md` on 2026-11-10 (workspace D3: one record per project, newest first). The
+npm method facts it carried stay true: the provenance read-back waits up to 10 minutes (2.0.1's
+appeared after more than 3, 2.0.2's after 77 s), and a re-run skips a version npm already serves
+(measured on 2.0.1's re-run: 0 s, no second upload).
 
 ## ✅ Done 2026-10-21, in this order — the recipe, kept for a new npm package (binaryang's experience, `publishing.md` § 1.13.1)
 
