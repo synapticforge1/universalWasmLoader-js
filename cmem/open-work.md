@@ -6,12 +6,9 @@ closed recently with the commit that closed it.
 
 ## Open
 
-- **The release flow in the owner's order (2026-11-10, H33) has not run on GitHub.** Measured
-  locally ([release.md](release.md) § "How a release runs"): the scripts, the self-test and its
-  mutants, the real-GitHub dry runs, the sparse JSR tree, a rehearsal against a scratch origin.
-  ⚠️ The first release measures what cannot be measured here: JSR's and npm's OIDC from a run
-  started by a push of `main` (every earlier publish ran from a tag push); CI creating the tag;
-  JSR's re-run skip. Read that run job by job and record it in `release.md`.
+- **A re-run of the new `publish.yml` has never been needed** (2026-11-10): each job's skip (tag
+  at this commit, page there, version served) is tested on mocks and the npm skip ran once under
+  the old workflow (2.0.1); JSR's skip has never run on GitHub. Measure it at the first failure.
 - **CI (`ci.yml`) still installs Bun, Deno and fnm with `curl | bash`** — it holds no publishing
   credential (C30's scope), but the same pinned downloads would remove the last unpinned
   installers. Not changed without the owner.
@@ -46,6 +43,9 @@ closed recently with the commit that closed it.
 
 ## Closed recently (one line each; the record is in the linked file)
 
+- 2026-11-10 — **2.0.3 released, the first release in the owner's order** (`15388fd`, run
+  42849918410: checks → CI tag → page → JSR ∥ npm, all green; OIDC from a `main` push works for
+  both registries) → [release.md](release.md).
 - 2026-11-10 — **H33 / C45 / H34** (the owner's release order; no `release/<tag>` branch; the
   owner's three words): `bump <level>` required and self-committing, `release.ts` pushes `main`
   only, `publish.yml` on `main` (checks → tag → page → JSR ∥ npm), the JSR job installs nothing;

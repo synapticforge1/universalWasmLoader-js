@@ -70,8 +70,8 @@ replaced the old caller-allocated out-parameter convention. The change lives in 
 
 ## Conformance / SPEC
 
-`SPEC.md` is the cross-language contract; currently **v4.0.1** on `main` (2026-11-09, unreleased;
-the published 2.0.2 ships 4.0.0). 4.0.1 is a clarification: §11.1's port allowance for a
+`SPEC.md` is the cross-language contract; currently **v4.0.1** (2026-11-09; shipped in 2.0.3,
+2026-11-10). 4.0.1 is a clarification: §11.1's port allowance for a
 zero-value options type, the owner's "adjust for go" ruling (ledger C35; [spec-4.0.0.md](spec-4.0.0.md)
 § Port allowances). 4.0.0 (2026-11-07, owner's decisions on workspace letter H29: absent-vs-failed
 `.wit`, strict WIT, host callbacks required, typed-call argument checks, the §11 time limit — each

@@ -34,10 +34,12 @@ classification on the real tags (released / rerun / new); the sparse JSR tree pa
 bare `origin` — `bump` refuses no level and an untracked file, then commits `bump to v2.0.3`;
 `release.ts` refuses a tag on origin, a local tag, JSR serving the version, npm having had it, an
 untracked file, a commit on top of the bump, a branch other than `main`; the real run (full gate)
-pushed `main` with the bump commit and NO tag. ⚠️ **To measure on the first release in this
-order:** that JSR and npm accept OIDC from a run started by a push to `main` (until 2.0.2 every
-publish ran from a tag push); the tag made by `GITHUB_TOKEN` (no workflow is triggered by it,
-by design).
+pushed `main` with the bump commit and NO tag. ✅ **Measured on GitHub by 2.0.3 (2026-11-10, run
+42849918410):** every job green in this order; JSR and npm accept OIDC from a run started by a push
+of `main`; the tag made by `GITHUB_TOKEN` started no run (one Publish run for the commit). The
+non-release path was measured the same day on `a69c7fa` (run 42849639914: `checks` green, the rest
+skipped). Still not exercised on GitHub: a re-run of THIS workflow (each job's skip) — JSR's
+"already has the version" skip has never been needed.
 
 ## Release History
 
@@ -49,8 +51,20 @@ README's Publishing section describes the new release order. The release itself 
 the owner's order (2026-11-10, H33): `bump` → `release` pushes `main` only → CI checks → CI tags →
 the page → JSR ∥ npm.
 
-Owner: "release", level patch (asked, answered). *Run, read-backs and the user check: written
-after the run.*
+Owner: "release", level patch (asked, answered). `bump to v2.0.3` `15388fd` (bump: floor patch,
+v2.0.2's tests 73/73); `bun run release` pushed `main` only (gate, compat --release and the JSR dry
+run green locally; no tag). **Publish run 42849918410, green in every job, in the owner's order**
+(times UTC, from the Actions API): `checks` 15:58:21–15:58:37 (a release; both registries free; the
+JSR dry run on the sparse tree) → `tag` 15:58:46, the annotated tag `v2.0.3` (object `bc50aae`) by
+`github-actions[bot]` on `15388fd` → `release` 15:58:55, the page by `github-actions[bot]`, not a
+draft, `releases/latest`, the JSR + npm links on top; no `release/v2.0.3` branch (404) → `jsr`
+15:59:00–15:59:15 and `npm` 15:59:00–16:02:02 (npm's provenance visible after about 3 minutes).
+**Measured for the first time:** JSR and npm both accept OIDC from a run started by a push of
+`main`; CI's REST-made tag; the JSR publish of the sparse tree with nothing installed. Read back:
+JSR rekorLogId 3789195211, latest 2.0.3, score 100, its 11 stored files byte-identical to the tag
+(`_meta.json` sha256); npm SLSA v1, latest 2.0.3, 11 files = the tag; a fresh `npm install` (in a
+scratch package) loads `math_50` and refuses `add("x", 1)`, `imports_50` without callbacks and a
+callback returning `undefined`. CI 42849918344 green.
 
 ### 2.0.2 — 2026-11-09 (SPEC 4.0.0)
 
