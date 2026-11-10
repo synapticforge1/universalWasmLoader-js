@@ -41,6 +41,17 @@ by design).
 
 ## Release History
 
+### 2.0.3 — 2026-11-10 (SPEC 4.0.1)
+
+**What changed:** no code or API change. SPEC 4.0.1 — § 11.1's port allowance for a zero-value
+options type (Go's `LoadOptions{}` = the 30 s default; the owner's "adjust for go", ledger C35);
+README's Publishing section describes the new release order. The release itself is the FIRST in
+the owner's order (2026-11-10, H33): `bump` → `release` pushes `main` only → CI checks → CI tags →
+the page → JSR ∥ npm.
+
+Owner: "release", level patch (asked, answered). *Run, read-backs and the user check: written
+after the run.*
+
 ### 2.0.2 — 2026-11-09 (SPEC 4.0.0)
 
 **What changed:** no shipped file — the same code and docs as 2.0.1 under a new number. The release
