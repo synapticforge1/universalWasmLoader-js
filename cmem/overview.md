@@ -8,7 +8,7 @@ other-language ports (`-rs`, `-py`, `-go`, `-jvm`, `-c`, `-dotnet`, `-dart`, `-z
 match this implementation's behavior and the cross-language `SPEC.md`, with ONE accepted
 JS-specific difference: path resolution (below).
 
-## Where it lives (2026-10-21; latest release 2.0.0, 2026-11-07)
+## Where it lives (2026-10-21; the latest release: [release.md](release.md))
 
 - **GitHub:** `https://github.com/synapticforge1/universalWasmLoader-js`, a public repo of the
   **`synapticforge1` organization** (owner-controlled). 🔁 Moved there by the owner by 2026-10-21;
@@ -17,11 +17,11 @@ JS-specific difference: path resolution (below).
   followed on 2026-10-23 (`synapticforge1/wasmtk`; this repo's links to it fixed 2026-10-26, H17).
 - **JSR:** the package stays `@jrmarcum/universal-wasm-loader` (the JSR scope did not move). JSR's
   GitHub link already names `synapticforge1/universalWasmLoader-js` (`api.jsr.io`, updated
-  2026-10-20); first proven by JSR 1.1.1's provenance (rekorLogId `3367515417`, 2026-10-21), last
-  by **2.0.0's (rekorLogId `3742189142`, 2026-11-07)**.
+  2026-10-20); first proven by JSR 1.1.1's provenance (rekorLogId `3367515417`, 2026-10-21); every
+  release's id since is in [release.md](release.md).
 - **npm** (owner, 2026-10-21): `@synapticforge1/universal-wasm-loader` — 1.1.0 by hand, every
-  release since **by trusted publishing with provenance** (SLSA v1), the same bytes as JSR's:
-  1.1.1, 1.1.2, **2.0.0** — [npm.md](npm.md).
+  release since **by trusted publishing with provenance** (SLSA v1), the same bytes as JSR's —
+  [npm.md](npm.md) (how), [release.md](release.md) (each release).
 - **Trusted publishing after the move (letter H20, recorded 2026-10-26).** Both registries
   published 1.1.1 from the ORG repo on 2026-10-21, after the move, so neither policy is stuck on
   the old owner. JSR: the package is linked to `synapticforge1/universalWasmLoader-js` (the link
@@ -101,44 +101,27 @@ since 2026-10-13 ([linting.md](linting.md)).
 
 ## Release flow
 
-`jsr.json` version is the package version (since 2026-10-12; `deno.json` before). `bun run bump
-[patch|minor|major]` raises it, after the compatibility gate allows that level
-([compat-gate.md](compat-gate.md)); `bun run release` commits, tags `vX.Y.Z`, and pushes → the
-`publish.yml` GitHub Action verifies everything for BOTH registries first (gate, compatibility
-gate, the npm tarball, the version free on JSR and npm), then publishes to JSR and npm in parallel
-with OIDC provenance and reads both attestations back ([npm.md](npm.md) § "The release path",
-since 2026-10-21). `bun run release` spawns plain `git`; that works on this exFAT drive
-because the repo's path is in the global `safe.directory` list (added 2026-10-12).
-Provenance requires the GitHub OIDC token to reach the runner — the workflow has an
-"Check OIDC availability" diagnostic step (added 2026-06-15, mirroring wasmtk) because that org's
-OIDC was found to be environmentally gated.
+`jsr.json` version is the package version (since 2026-10-12; `deno.json` before). 🔒 **Since
+2026-11-10, the owner's order (workspace letter H33):** `bun run bump <level>` (the level is
+required) runs the compatibility gate ([compat-gate.md](compat-gate.md)) and commits `bump to
+vX.Y.Z`; `bun run release` checks everything it can locally and pushes `main` ONLY; `publish.yml`
+on that push runs `checks` → CI makes the tag → the GitHub Release page from the tag → JSR ∥ npm
+with OIDC provenance, both read back. Nothing is tagged from a machine. Slot by slot, what was
+measured and what is still to measure: [release.md](release.md) § "How a release runs"; every
+release: [release.md](release.md) § "Release History". `bun run release` spawns plain `git`; on
+this exFAT drive that works because the system git config holds a `safe.directory` wildcard for
+the workspace folder (ledger C9). Provenance requires the GitHub OIDC token to reach the runner —
+the workflow keeps its "Check OIDC availability" diagnostic step (added 2026-06-15, mirroring
+wasmtk) because that org's OIDC was found to be environmentally gated.
 
-**The job graph since 2026-11-09** (owner, on ledgers H30 / C30 / C34; working-rules 9 and 10):
-`verify` {contents: read} does everything that runs third-party code (gate, compat, release
-self-test, `npm:prove`, JSR dry run) and outputs the proved `dist/`'s digest; `jsr` and `npm`
-{id-token: write} hold the publishing credential and run only pinned Deno / Node / Bun — `jsr`
-a `bun install --ignore-scripts` for `deno publish`'s type check, `npm` a dependency-free
-`scripts/npm/build.ts` that must reproduce verify's digest — and each skips an upload the
-registry already has, so "Re-run failed jobs" is safe after a failure past the upload; `release`
-{contents: write} runs once verify passed, whatever `jsr` / `npm` exited with, checks out
-nothing, and runs `scripts/github-release.ts` fetched alone at `github.sha` (REST API, no `gh`;
-H32's order since 2026-11-09): it waits for both registries, requires the tag to peel to
-`github.sha`, stops with NO write when the page exists, else creates `release/<tag>` and the
-page (JSR + npm links on top of generated notes), reads it back and peels the tag again; every
-request has a 30 s limit (18-check self-test, five mutants caught). npm "free" means the
-version is absent from the package document's `time` (a removed number counts as taken — S3D's
-measurement; this package has none, measured 2026-11-09). Every clone is token-less; tools are
-pinned by version + sha256 (Bun 1.4.4, Deno 2.9.8, Node 24.21.0 with npm 11.19.0). Measured
-locally 2026-11-09, before its first run: the release script (then a 13-check self-test, 18
-since the H32 rework the same day; two mutants, five since
-caught, and a read-only dry run against the real GitHub / JSR / npm for `v2.0.0`, `v1.1.2`, a
-wrong commit and an absent tag), the tag peel (lightweight here, annotated on loader-c's
-`v1.1.2`), the jq expressions, the pinned installs (Git Bash; a wrong pin stops the step under
-`bash -eo pipefail`), and the digest (`npm:prove`'s `dist/` = `build.ts`'s, 12 files). **First
-run: 2.0.1, 2026-11-09** — every job did its part (the pinned installs, verify's digest matched
-by the npm job, the REST release step); only npm's provenance read-back was too short (now 10
-minutes). The owner's re-run of the npm job (attempt 2, green) exercised the npm skip; JSR's
-skip is the one path not yet run on GitHub.
+**History of the job graph:** until 2026-11-09 a tag pushed from this machine started `verify` →
+JSR ∥ npm → `release` (`gh release create` and a `release/<tag>` branch). 2026-11-09 (ledgers H30,
+C30, C34, H32): no `gh` (the REST script), every tool pinned by sha256, the publishing jobs run no
+third-party code, every clone token-less, recoverable uploads (each job skips what the registry
+has), npm "free" read from the package document's `time`, the page in H32's order with no checkout
+in its job — first run by 2.0.1, then 2.0.2 green. 2026-11-10 (H33, C45): the trigger moved from the
+tag to `main`, CI makes the tag, the page comes before the publish, the `release/<tag>` branch is
+gone, and the `jsr` job publishes a sparse tree of the shipped files with nothing installed.
 
 **The workflows use only `run:` steps — never `uses:` (third-party actions).** Under the
 `jrmarcum` owner the Actions policy permitted only actions owned by `jrmarcum`. 🔒 **For the
@@ -147,45 +130,16 @@ as was used with binaryang."** Observed the same day: binaryang's workflows in t
 use `actions/checkout`, `oven-sh/setup-bun`, `actions/setup-node`, `denoland/setup-deno` and run
 green. `run:` steps work under either reading, so this repo keeps them; switching to `uses:` would
 be a deliberate change, not a fix. Under the old policy any `uses: actions/checkout` /
-`uses: denoland/setup-deno` made the run end in `startup_failure` (no step executes, so nothing reaches JSR even though the local
-`deno task publish` still creates the tag/release — making it look "published on GitHub" but absent on
-JSR). The v1.0.6 tag hit exactly this when the workflow was briefly switched to external actions
-(2026-06-15); reverted to `git clone` + curl-install-Deno `run:` steps. The triggering workflow file is
-the one **at the tagged commit**, so the tag must point at a commit that already contains a `run:`-only
-`publish.yml`.
+`uses: denoland/setup-deno` made the run end in `startup_failure` (no step executes, so nothing
+reaches JSR even though the local `deno task publish` still creates the tag/release — making it
+look "published on GitHub" but absent on JSR). The v1.0.6 tag hit exactly this when the workflow was
+briefly switched to external actions (2026-06-15); reverted to `git clone` + curl-install-Deno
+`run:` steps. The workflow that runs is the one **at the pushed `main` commit** (it was the one at
+the tagged commit until 2026-11-10), so a changed `publish.yml` takes effect with the push that
+carries it.
 
-**Published:** **2.0.2, 2026-11-09** (owner: "update the project memory files, commit, push and
-release"; a patch with NO shipped file changed — the first tag run of the release page in H32's
-order): `Release v2.0.2` `1c840d2` = tag `v2.0.2`; publish run 42663185314 green in every job
-(npm's provenance read-back took 77 s of its 10 minutes). The page, read back through the REST
-API: `author.login` `github-actions[bot]`, not a draft, `releases/latest` = v2.0.2, the JSR and
-npm links on top of the generated notes; `release/v2.0.2` = the tag's commit; the `release` job
-ran no checkout (pinned Bun, the script fetched alone, the page in 4 s). JSR rekorLogId
-**3767290265**, score 100; npm SLSA v1, 11 files = the tag; a fresh install loads and refuses.
-Before it, **2.0.1, 2026-11-09** (owner: "release"; a patch — only the shipped README
-changed): `Release v2.0.1` `771ac03` = tag `v2.0.1`; publish run 42633902729 — the first run of
-the 2026-11-09 job graph: `verify` / `jsr` / `release` green, `npm` published but its provenance
-read-back timed out at 3 minutes; green after the owner's re-run ([npm.md](npm.md) § the table). Read back independently: JSR
-rekorLogId **3766026937**, latest 2.0.1, score 100; npm latest 2.0.1, SLSA v1, 11 files = the
-tag; GitHub: tag, `release/v2.0.1` and the Release (`github-release.ts --dry-run`); a fresh
-`npm install …@2.0.1` on Node 24 loads `math_50` and gives the three refusals. Before it,
-**2.0.0 (SPEC 4.0.0), 2026-11-07** (owner: "tag it first", then push): `Release
-v2.0.0` `1169ab9`, tag `v2.0.0`; publish run 42394507328 green (verify → JSR ∥ npm → GitHub
-Release), CI 42394504835 green. Read back independently: JSR rekorLogId **3742189142**, latest
-2.0.0, score 100, linked to the org repo; npm latest 2.0.0, SLSA v1 provenance, its 11 files
-byte-identical to the tag; a fresh `npm install …@2.0.0` on Node 24 loads `math_50` and refuses
-`add("x", 1)`, `imports_50` without callbacks, and a callback returning `undefined`, each with its
-message. Before it, `@jrmarcum/universal-wasm-loader@1.1.2` was live on JSR and
-`@synapticforge1/universal-wasm-loader@1.1.2` on npm (2026-10-26, owner: "push and release the
-next version") — the masked-HTTP-error fix. Publish run 40380578962: verify → JSR ∥ npm → GitHub
-Release, all green, the first full run of the one-run design. Read back independently: JSR
-rekorLogId **3493886393**, latest 1.1.2, **score 100**, linked to the org repo; npm latest 1.1.2,
-provenance SLSA v1; npm's 11 files byte-identical to the `v1.1.2` tag (git blob ids; `package.json`
-generated); a fresh `npm install …@1.1.2` on Node 24 loads `math_50` and reports a 404 as
-`wasmImport: HTTP 404 Not Found for <url>`. Before it, **1.1.1** (2026-10-21, rekorLogId
-3367515417) was the first release from the `synapticforge1` org. Before that, 1.1.0 (2026-10-12, rekorLogId 3232619821): It was the first release from the Bun toolchain, and it
-contains SPEC §10 plus the Node `file:` fix ([bun-migration.md](bun-migration.md)). 1.0.8 before it
-also scored 100 with provenance. The `run:`-only workflow delivered provenance cleanly both times.
+**Published:** every release, newest first, with what changed and its read-backs —
+[release.md](release.md) § "Release History" (moved there 2026-11-10, D3).
 
 ## Producer model + SPEC §10 capabilities (IMPLEMENTED 2026-06-15)
 

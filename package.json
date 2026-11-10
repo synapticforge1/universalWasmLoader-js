@@ -19,7 +19,7 @@
     "npm:build": "bun scripts/npm/build.ts",
     "npm:prove": "bun scripts/npm/prove.ts",
     "bump": "bun scripts/bump.ts",
-    "release": "bun scripts/publish.ts",
+    "release": "bun scripts/release.ts",
     "publish:dry": "deno publish --dry-run --allow-dirty"
   },
   "devDependencies": {
