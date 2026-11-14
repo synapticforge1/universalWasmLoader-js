@@ -158,7 +158,9 @@ never looked for. Proof (2026-11-13): `bun run reviews:selftest` 23 checks, in C
 one-line mutants of the check, each caught (the unfinished words, the empty-round rule, the
 version-heading boundary, a mention inside another paragraph, the entry's end, a duplicate, a
 missing paragraph, a missing entry); `bun run bump patch` on the committed tree refused "no
-`### 2.0.4` entry" and wrote nothing; `bun run reviews` on 2.0.3 (released before the rule) is
+`### 2.0.4` entry" and wrote nothing; in a scratch clone, an entry with only the security
+paragraph → `bump patch` refused "no `**Hardening review` paragraph", `jsr.json` untouched, and
+with both paragraphs → `bump to v2.0.4` committed, `jsr.json` only; `bun run reviews` on 2.0.3 (released before the rule) is
 refused, as it should be. NOT yet measured: the `publish.yml` step on GitHub — the next release.
 
 ## 8. Efficiency review (workspace § 8; optional)
