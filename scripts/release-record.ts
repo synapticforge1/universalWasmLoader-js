@@ -20,7 +20,8 @@
  * Used by `scripts/bump.ts` (the version it is about to write), `scripts/release.ts` and
  * `publish.yml`'s `checks` (the version in jsr.json). Written on `node:` builtins only.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { join } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -62,21 +63,94 @@ export function reviewProblems(text: string, version: string): string[] {
   return problems;
 }
 
-const root = fileURLToPath(new URL("..", import.meta.url));
+const here = fileURLToPath(new URL("..", import.meta.url));
+const why = (e: unknown): string => (e as NodeJS.ErrnoException).code ?? (e as Error).message;
+
+/**
+ * `reviewProblems` for the `cmem/release.md` under the repository root `dir`. A file that cannot be
+ * read is a problem by name, never a throw: the callers (`bump`, `release`, the CLI) print it.
+ */
+export function reviewProblemsAt(dir: string, version: string): string[] {
+  let text: string;
+  try {
+    text = readFileSync(join(dir, "cmem", "release.md"), "utf8");
+  } catch (e) {
+    return [`cmem/release.md cannot be read (${why(e)}): the security and hardening reviews are recorded there`];
+  }
+  return reviewProblems(text, version);
+}
 
 /** `reviewProblems` for this repo's own `cmem/release.md`. */
 export function reviewProblemsHere(version: string): string[] {
-  return reviewProblems(readFileSync(`${root}/cmem/release.md`, "utf8"), version);
+  return reviewProblemsAt(here, version);
 }
 
-const isMain = process.argv[1] !== undefined &&
-  fileURLToPath(import.meta.url).replace(/\\/g, "/") === process.argv[1].replace(/\\/g, "/");
-if (isMain) {
-  const version = process.argv[2] ?? (JSON.parse(readFileSync(`${root}/jsr.json`, "utf8")) as { version: string }).version;
-  const problems = reviewProblemsHere(version);
+/**
+ * The command line, for the repository root `dir`: `args` holds the version, or nothing for the one
+ * in `jsr.json`. Returns the exit code; every failure is a named line on stderr, never a stack trace.
+ */
+export function main(dir: string, args: readonly string[]): number {
+  if (args.length > 1) {
+    console.error(`❌ reviews: one version at most, got ${args.length} arguments — bun run reviews X.Y.Z`);
+    return 1;
+  }
+  const arg = args[0];
+  let version = arg;
+  if (version !== undefined && !/^\d+\.\d+\.\d+$/.test(version)) {
+    console.error(`❌ reviews: ${JSON.stringify(version)} is not an X.Y.Z version — bun run reviews X.Y.Z`);
+    return 1;
+  }
+  if (version === undefined) {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(join(dir, "jsr.json"), "utf8"));
+      const v = typeof parsed === "object" && parsed !== null ? (parsed as { version?: unknown }).version : undefined;
+      if (typeof v !== "string") throw new Error('no "version" string');
+      if (!/^\d+\.\d+\.\d+$/.test(v)) throw new Error(`its version "${v}" is not X.Y.Z`);
+      version = v;
+    } catch (e) {
+      const reason = e instanceof SyntaxError ? "not valid JSON" : why(e);
+      console.error(`❌ reviews: jsr.json's version cannot be read (${reason}); name the version: bun run reviews X.Y.Z`);
+      return 1;
+    }
+  }
+  const problems = reviewProblemsAt(dir, version);
   if (problems.length > 0) {
-    console.error([`❌ ${version} is not ready for release (workspace review-process.md § 0):`, ...problems.map((p) => `  ${p}`)].join("\n"));
-    process.exit(1);
+    const lines = [`❌ ${version} is not ready for release (workspace review-process.md § 0):`, ...problems.map((p) => `  ${p}`)];
+    // Without an argument the version is jsr.json's — between releases that is the LAST release
+    // (one made before the rule, up to 2.0.3, has no record). The line only says which version
+    // was checked: whether it is released is not known here, so nothing is said about it.
+    if (arg === undefined) {
+      lines.push(`  (checked: ${version}, the version in jsr.json; to check another: bun run reviews X.Y.Z)`);
+    }
+    console.error(lines.join("\n"));
+    return 1;
   }
   console.log(`✓ cmem/release.md records the security and hardening reviews of ${version}, each ended by an empty round`);
+  return 0;
 }
+
+/**
+ * Is this file the program being run (not an import)? The plain comparison first; then the real
+ * paths, because Node resolves a symlink or junction in `import.meta.url` but leaves `argv[1]` as
+ * typed — with the plain comparison alone, `node <link>/scripts/release-record.ts X.Y.Z` printed
+ * nothing and exited 0 (review of 2026-11-13, class F retest 3). `self` is this file's path, `arg`
+ * is `argv[1]`; `real` and `windows` are parameters so the self-test can see every branch on any
+ * runtime and platform.
+ */
+export function sameProgram(
+  self: string,
+  arg: string | undefined,
+  real: (p: string) => string = realpathSync,
+  windows: boolean = process.platform === "win32",
+): boolean {
+  if (arg === undefined) return false;
+  const norm = (p: string) => p.replace(/\\/g, "/");
+  if (norm(self) === norm(arg)) return true;
+  try {
+    const [a, b] = [norm(real(self)), norm(real(arg))];
+    return windows ? a.toLowerCase() === b.toLowerCase() : a === b;
+  } catch {
+    return false;
+  }
+}
+if (sameProgram(fileURLToPath(import.meta.url), process.argv[1])) process.exit(main(here, process.argv.slice(2)));
