@@ -4,7 +4,7 @@
 for all projects. each project may have differing individual issues, but the overall process should
 be the same." **The process is the workspace's `../../cmem/review-process.md`** — read it before
 any review; it is not repeated here. This file holds only what differs per project: this repo's
-slots (its § 7), written 2026-11-13. **No review has been run under this process yet** (§ 9).
+slots (its § 7), written 2026-11-13. The first review ran the same day: § 9 (14 findings, open).
 
 ## 1. The owner's words (workspace § 0; the commands are in [working-rules.md](working-rules.md))
 
@@ -49,7 +49,8 @@ it (§ 7). A review never commits, pushes or releases.
   - `bun run surface --check` (`api-surface.json` current) and `bun run compat` (the floor since
     the last tag; that tag's tests on today's source). A surface change is a finding until it is
     intended, and then a re-baseline in its own commit ([compat-gate.md](compat-gate.md)).
-  - The self-tests: `compat:selftest` 26, `release:selftest` all checks, `reviews:selftest` 23.
+  - The self-tests: `compat:selftest` 26, `release:selftest` all checks, `reviews:selftest` 68
+    (23 until the class F fixes of 2026-11-13; it needs `git` and builds a scratch repository).
   - `bun run npm:prove` (the tarball built, packed, installed, run: 11 files) and `bun run
     publish:dry`.
   - By hand, not a gate: the browser run, 58 of the 73 ([open-work.md](open-work.md)).
@@ -154,7 +155,11 @@ good. Three places run it:
 
 A nested review meets both records: a hardening review run to its empty round is also the security
 review, and the `**Security review` paragraph says so and names that round. An efficiency review is
-never looked for. Proof (2026-11-13): `bun run reviews:selftest` 23 checks, in CI's `gates`; eight
+never looked for. Since the class F fixes (§ 9 #14) the command also refuses, in one named line,
+an unreadable record or `jsr.json`, a version that is not X.Y.Z and a second argument; `bump` runs
+the check BEFORE its compatibility gate; and the self-test (68 checks) runs the script as a
+process, through a link, and runs `bump` (all three levels) and `release` (both ways) in a scratch
+git repository. Proof as first written (2026-11-13): `bun run reviews:selftest` 23 checks, in CI's `gates`; eight
 one-line mutants of the check, each caught (the unfinished words, the empty-round rule, the
 version-heading boundary, a mention inside another paragraph, the entry's end, a duplicate, a
 missing paragraph, a missing entry); `bun run bump patch` on the committed tree refused "no
@@ -179,8 +184,37 @@ refused, as it should be. NOT yet measured: the `publish.yml` step on GitHub —
 
 ## 9. Findings ledger
 
-No review has been run under this process (2026-11-13). The first is due before the next release:
-a hardening review (which includes the security review and the review) on `v2.0.3..HEAD`.
+The first review under this process: a "review" (change review) of `v2.0.3..HEAD` (`504532a`),
+2026-11-13. Round 1: three reviewers (the record check and its self-test; its wiring into `bump`
+/ `release` / the workflows; the claims in the changed docs and memory). The wiring reviewer found
+no defect. Every row below was re-verified by a run by the author the same day. **Scope and order
+are the owner's** (workspace § 1.5: "F first", 2026-11-13); the classes are fixed one at a time —
+class F is in progress (#14), every other row is open.
+Still due before the next release: a hardening review (which includes the security review and the
+review) on everything since `v2.0.3`.
+
+Classes: **A** the record check passes a review that is not recorded as finished (silent);
+**B** the record check refuses a correct record (loud); **C** a self-test that cannot fail for
+the reason it names; **D** a claim the code or SPEC.md does not support; **E** a network request
+with no time limit; **F** cosmetic.
 
 | # | date | review / round | class | finding (file:line, scenario, run or reasoned, severity) | fix, test, inversion — or why not fixed |
 | --- | --- | --- | --- | --- | --- |
+| 1 | 2026-11-13 | review, r1 | A | `scripts/release-record.ts:59` — "empty round" is a bare keyword: "there was no empty round", "in progress, empty round expected", "to do; empty round" each pass. RUN. Silent, but needs a record that contradicts itself | open |
+| 2 | 2026-11-13 | review, r1 | A | `release-record.ts:33` — the FIRST `### X.Y.Z` line wins, fences ignored: a fenced numeric example with both paragraphs ABOVE the real, unreviewed entry passes. RUN. Silent, low likelihood (today's template heading is `### X.Y.Z`, not a number) | open |
+| 3 | 2026-11-13 | review, r1 | B | `release-record.ts:59` — a correct record hard-wrapped between "empty" and "round" (or with two spaces) is refused; entries wrap at ~100 columns, so this is LIKELY at the first real release. RUN. Loud | open |
+| 4 | 2026-11-13 | review, r1 | B | `release-record.ts:28` — the unfinished words match anywhere in the paragraph: "reviewers did not run the browser half; round 2 was the empty round" and "nothing pending" are refused. RUN. Loud | open |
+| 5 | 2026-11-13 | review, r1 | B | `release-record.ts:36`, `:48` — a `# comment` line inside a fence ends the entry early; a review paragraph without a blank line before it, or written as a list item / blockquote, is "missing". RUN by the reviewer. Loud | open |
+| 6 | 2026-11-13 | review, r1 | C | `scripts/check-release-record.ts` — three mutants survive 23 / 23: dropping `tbd`, `not run`, `not done` from the list; removing the `i` flag of `/empty round/i`; an entry not ended by a level-1 heading. No check covers a wrapped phrase, a fence, or two entries for one version. RUN by the reviewer (the author's 8 mutants did not include these) | open |
+| 7 | 2026-11-13 | review, r1 | D | [spec-4.0.0.md](spec-4.0.0.md) § Port readings, the -go (a) row — "range-checked integers (-go, -js) is the floor" is WRONG: `abi.js:27-31` takes only an integer `number` for `s32` and only a `bigint` for `s64` (`add(1n, 2)` → TypeError, RUN), so -js is on the exact-kind side with -dotnet and -zig; and "Accepted" for -go contradicts row 1's "the letter" (§ 4's Ports column: "the language's 32-bit integer"). The same answer is in workspace ledger row C47 (a 🔁 caution was added there 2026-11-13). Highest of class D: ports read it | open — the -go (a) reading should be "open, the owner's ruling", not accepted |
+| 8 | 2026-11-13 | review, r1 | D | the same table, -dotnet (c) / -go (d) row — "Accepted" cites § 11 and § 7.8 but not § 7.1's MUST ("the same logical signature … `options?`") nor § 11.4. READ. The answer is arguable; its stated basis is incomplete | open |
+| 9 | 2026-11-13 | review, r1 | D | § 2 above — "`bun run npm:prove` (… 11 files)": it prints **12 files** (RUN; [npm.md](npm.md) says 12 — the tarball has `LICENSE`; "11" in release.md's history is the tag's files) | open |
+| 10 | 2026-11-13 | review, r1 | D | § 4 above — "every script request has its own limit" is false (row 13); the `wasi.js` list omits `fd_close`, `fd_fdstat_get`, `fd_seek` (stubs; "no file access" holds); "the loader writes nothing" ignores `fd_write` → the host console; "pinned in `package.json`" — `@types/node` is `~22.18.0` (exact only in `bun.lock`). READ / RUN | open |
+| 11 | 2026-11-13 | review, r1 | D | stale beside the change: [overview.md](overview.md) § Release flow, [working-rules.md](working-rules.md) § The gate ("Every bump…") and `CLAUDE.md` item 2 describe `bump`'s gate without the review record; the "104 commits" scan count is 107 after this session's three commits (dated, so labelled) | open |
+| 12 | 2026-11-13 | review, r1 | D | README § Publishing names `cmem/release.md`, which is in neither package (GitHub only); [release.md](release.md) § "An entry's shape" does not warn that an unfinished word ANYWHERE in a required paragraph refuses the release (row 4) | open |
+| 13 | 2026-11-13 | review, r1 | E | `scripts/check-lts.ts:59`, `scripts/npm/prove.ts:230`, `:236` — `fetch` with no time limit (workspace best-practices 7.21); code older than the reviewed range, found through row 10. READ + grep. A stalled server hangs `bun run lts` / `npm:prove` (and CI's and `publish.yml`'s `npm:prove` step) until the job's own limit | open |
+| 14 | 2026-11-13 | review, r1 | F | `release-record.ts:69`, `:75` — a missing `cmem/release.md` or `jsr.json` ends in a stack trace (non-zero exit: fails safe); `bump` prints the compat report before the review refusal; `bun run reviews` with no argument is red on a released version that predates the rule (2.0.3) | **in progress, not cleared** (owner: "F first"; paused 2026-11-13; committed and pushed that day on the owner's word, as work in progress). Fixed on `review-r1-fixes`: named refusals for an unreadable record / `jsr.json`; the record check before the compat gate in `bump`; a neutral "(checked: X, the version in jsr.json…)" line. Class retests 1–4 each found more, all fixed: the hint said "nothing to do"; malformed versions and `null`; the script never run as a process by its self-test (3 mutants survived); exit 0 under Node through a link (`sameProgram`, real paths); `bump` / `release` callers untested (now run in a scratch git repo, all three levels, `release` both ways); two arguments. Self-test 23 → 68 checks; 23 mutants caught on Bun (the link one first inverted on Node 22). Retest 5 started, result unread — see [open-work.md](open-work.md) |
+| 15 | 2026-11-13 | review, class F retest 3 | F (older code) | `scripts/compat.ts:207`, `surface.ts:160`, `github-release.ts:219`, `regen-fixtures.ts:40`, `npm/build.ts:107` — the plain `isMain` comparison: under Node through a symlink or junction the script does nothing and exits 0 (RUN for `release-record.ts` before its fix; READ for these five). Not exposed today: every one is run by Bun, which does not resolve the link | queued — not in the reviewed range |
+
+Reasoned and NOT a finding: a tag pushed by hand on an unchecked commit makes `publish.yml` read
+"rerun" and skip the record check — it needs the owner's own tag push, which no tool here makes.

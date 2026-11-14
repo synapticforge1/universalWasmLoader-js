@@ -9,13 +9,12 @@
  *
  * The level is the owner's and is REQUIRED: there is no default (U1).
  *
- * GATED: it refuses a tree with any change or untracked file (the bump is its own commit, U2 / U3);
- * then it runs `compat.ts` against the last release tag (letter H6) and REFUSES when the bump is
- * below the surface floor, when a patch/minor meets red previous-tag tests, or when
- * `api-surface.json` is stale; and it REFUSES when `cmem/release.md` has no entry for the new
- * version recording its security review and its hardening review, each ended by an empty round
- * (`release-record.ts`; workspace `review-process.md`, letter H35). Nothing is written on a
- * refusal. `bun run release` then pushes `main`; CI tags and publishes.
+ * GATED, in this order: it refuses a tree with any change or untracked file (the bump is its own
+ * commit, U2 / U3); it REFUSES when `cmem/release.md` has no entry for the new version recording
+ * its security review and its hardening review, each ended by an empty round (`release-record.ts`;
+ * workspace `review-process.md`, letter H35); then it runs `compat.ts` against the last release
+ * tag (letter H6) and REFUSES when the bump is below the surface floor, when a patch/minor meets
+ * red previous-tag tests, or when `api-surface.json` is stale. Nothing is written on a refusal. `bun run release` then pushes `main`; CI tags and publishes.
  *
  * Written on `node:` builtins only, so it runs on Bun, Node and Deno alike.
  */
@@ -43,12 +42,6 @@ if (dirty.status !== 0 || dirty.stdout.trim() !== "") {
   process.exit(1);
 }
 
-const problems = judge(lastTag(), kind);
-if (problems.length > 0) {
-  console.error(["", `❌ bump ${kind} refused:`, ...problems.map((p) => `  ${p}`)].join("\n"));
-  process.exit(1);
-}
-
 const text = readFileSync(manifestPath, "utf8");
 const m = text.match(/("version"\s*:\s*)"(\d+)\.(\d+)\.(\d+)"/);
 if (!m) {
@@ -71,9 +64,17 @@ if (kind === "major") {
 const to = `${major}.${minor}.${patch}`;
 
 // The two required reviews are recorded in the release's entry BEFORE the bump (letter H35).
+// Checked before the compatibility gate: it is one file read, and its refusal should not come
+// after a report that reads like a pass.
 const unreviewed = reviewProblemsHere(to);
 if (unreviewed.length > 0) {
-  console.error(["", `❌ bump ${kind} refused: ${to} is not ready for release (workspace review-process.md § 0):`, ...unreviewed.map((p) => `  ${p}`)].join("\n"));
+  console.error([`❌ bump ${kind} refused: ${to} is not ready for release (workspace review-process.md § 0):`, ...unreviewed.map((p) => `  ${p}`)].join("\n"));
+  process.exit(1);
+}
+
+const problems = judge(lastTag(), kind);
+if (problems.length > 0) {
+  console.error(["", `❌ bump ${kind} refused:`, ...problems.map((p) => `  ${p}`)].join("\n"));
   process.exit(1);
 }
 

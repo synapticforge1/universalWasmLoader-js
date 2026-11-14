@@ -6,6 +6,26 @@ closed recently with the commit that closed it.
 
 ## Open
 
+- **Review of `v2.0.3..HEAD`, round 1 done 2026-11-13: 14 findings, none fixed** (3 reviewers;
+  [review-process.md](review-process.md) § 9, classes A–F, each re-verified by a run). Next: the
+  owner chooses scope and order; then one class at a time — fix, a test that fails without it,
+  fresh reviewers on that class until a round finds none — and round 2 on the fixes. Worst first:
+  #7 (a wrong answer to loader-go's SPEC reading, also in ledger C47), #3 (a correctly written
+  review record that wraps "empty / round" is refused), #1–#2 (wordings and a fenced example that
+  pass the record check). These edits to `cmem/` are uncommitted until the owner's "commit".
+  **Paused 2026-11-13 (owner: "F first", then "pause here for today"), mid class F (#14), NOT yet
+  cleared:** the fixes so far were committed and pushed on the owner's "commit and push"
+  (2026-11-13, branch `review-r1-fixes`: `scripts/release-record.ts`, `check-release-record.ts`,
+  `bump.ts`) — pushed as work in progress, the class is NOT cleared. Four class-F retests each found more of the class (a
+  misleading hint; the self-test never running the script as a process; a silent exit 0 under
+  Node through a linked path; the `bump` / `release` callers untested), all fixed: self-test 68
+  checks, green on Bun, Deno, Node 22 and 26; 23 mutants caught; gate green, 73 tests. **Retest 5
+  was started and its result not read — on resuming, run a fresh class-F retest (same brief:
+  failure paths + whether the self-test catches a regression) until a round finds nothing, then
+  record #14 as cleared with the retest history and take the owner's next class** (recommended:
+  D, then A + B + C, then E). Queued, found on the way: **#15** — the old `isMain` comparison in
+  `compat.ts`, `surface.ts`, `github-release.ts`, `regen-fixtures.ts`, `npm/build.ts` does nothing
+  and exits 0 under Node through a linked path (always run by Bun today, so not exposed).
 - 🔒 **The next release needs a security review and a hardening review first** (owner,
   2026-11-12, letter H35; [review-process.md](review-process.md)): none has been run under the
   process yet. One "hardening review" on `v2.0.3..HEAD`, run to its empty round, is both (the
