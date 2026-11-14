@@ -72,6 +72,11 @@ jobs:
       - name: Release script self-test
         run: bun run release:selftest
 
+      # The check that a release's entry in cmem/release.md records its security review and its
+      # hardening review (letter H35), proven able to refuse.
+      - name: Review-record self-test
+        run: bun run reviews:selftest
+
       # Floor since the last release + that release's tests against this source. Fails only on a
       # stale snapshot here; the floor and red previous-tag tests BLOCK at `bun run bump` and on
       # the release tag (publish.yml).

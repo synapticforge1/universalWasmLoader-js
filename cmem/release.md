@@ -13,11 +13,11 @@ publish the package to the registry." The owner's words (`working-rules.md` § O
 
 | Slot | Here |
 | --- | --- |
-| U1 the go and the level | the owner's; `bun run bump` has NO default level |
-| U2 merge first | release notes / memory merged into `main` first; `bun run bump <level>` makes the `bump to vX.Y.Z` commit itself, touching only `jsr.json` |
-| U3 the bump tool | `scripts/bump.ts`: refuses an unclean tree (untracked files count), a stale `api-surface.json`, a level below the floor (`compat.ts`: the surface diff and the SPEC version since the last tag), and red previous-tag tests for a patch / minor |
-| U4 the release script | `bun run release` (`scripts/release.ts`): clean tree; on `main`, HEAD = `origin/main` + exactly the bump commit; the tag absent here and on `origin`; JSR 404 and npm's `time` without the version; `gate` + `compat --release` + the JSR dry run; then `git push origin main` ONLY, read back with `ls-remote`. No tag, no `tag -f`. `--dry-run` = guards only |
-| U5 `checks` | `publish.yml` on every push to `main`: "is this a release?" (jsr.json's version untagged, or tagged on THIS commit = a re-run); if so the full gate, `compat --release`, the release self-test, `npm:prove` (+ the `dist/` digest), both registries free, the JSR dry run on the exact sparse tree the `jsr` job publishes |
+| U1 the go and the level | the owner's; `bun run bump` has NO default level. 🔒 **Before it (owner, 2026-11-12, letter H35): a security review and a hardening review**, each run to its empty round on everything since the last tag, recorded in the new version's entry below ([review-process.md](review-process.md)) |
+| U2 merge first | release notes / memory — **the entry with both review paragraphs included** — merged into `main` first; `bun run bump <level>` makes the `bump to vX.Y.Z` commit itself, touching only `jsr.json` |
+| U3 the bump tool | `scripts/bump.ts`: refuses an unclean tree (untracked files count), a stale `api-surface.json`, a level below the floor (`compat.ts`: the surface diff and the SPEC version since the last tag), red previous-tag tests for a patch / minor, and (2026-11-13) a new version whose entry here does not record both reviews (`scripts/release-record.ts`) |
+| U4 the release script | `bun run release` (`scripts/release.ts`): clean tree; on `main`, HEAD = `origin/main` + exactly the bump commit; both reviews recorded (2026-11-13); the tag absent here and on `origin`; JSR 404 and npm's `time` without the version; `gate` + `compat --release` + the JSR dry run; then `git push origin main` ONLY, read back with `ls-remote`. No tag, no `tag -f`. `--dry-run` = guards only |
+| U5 `checks` | `publish.yml` on every push to `main`: "is this a release?" (jsr.json's version untagged, or tagged on THIS commit = a re-run); if so, for a new release both reviews recorded (2026-11-13; unmeasured on GitHub until the next release), then the full gate, `compat --release`, the release self-test, `npm:prove` (+ the `dist/` digest), both registries free, the JSR dry run on the exact sparse tree the `jsr` job publishes |
 | U6 `tag` | `scripts/github-release.ts tag` (fetched alone): the annotated tag on this commit through the REST API; existing here = done; elsewhere = refused; read back |
 | U7 `release` | `github-release.ts page`: the page FROM the tag, H32's order, the JSR + npm links on top, BEFORE the publish |
 | U8 `jsr` / `npm` | `jsr`: the sparse published tree, pinned Deno, nothing installed, skip if JSR has it, Rekor read-back fatal. `npm`: pinned Node (npm 11.19.0) + Bun, `build.ts` must reproduce checks' digest (the stand-in for an artifact: no `uses:` here), skip if npm has it, provenance read-back fatal (10 min) |
@@ -40,6 +40,31 @@ of `main`; the tag made by `GITHUB_TOKEN` started no run (one Publish run for th
 non-release path was measured the same day on `a69c7fa` (run 42849639914: `checks` green, the rest
 skipped). Still not exercised on GitHub: a re-run of THIS workflow (each job's skip) — JSR's
 "already has the version" skip has never been needed.
+
+## An entry's shape (since 2026-11-13, letter H35)
+
+Written BEFORE the bump, merged into `main` with the release notes; the run's facts are added
+after the release. The two review paragraphs are REQUIRED and machine-checked (`bun run reviews
+X.Y.Z`): each starts with its bold name, names the rounds and says "empty round" for the round
+that ended it; a word such as "pending" or "not yet" in either refuses the release. A hardening
+review run to its empty round is also the security review (the tiers nest): the security paragraph
+then says so and names that round. An efficiency review is optional; when one was run, it gets a
+paragraph of its own.
+
+```
+### X.Y.Z — <date> (SPEC a.b.c)
+
+**What changed:** <for a user, in a sentence or two>.
+
+**Security review** (<date>, `<last tag>..<commit>`): <rounds: reviewers, findings, classes
+fixed, ledger rows #a–#b>; round <n> was the empty round.
+
+**Hardening review** (<date>, `<last tag>..<commit>`): <the same>; round <n> was the empty round.
+
+<after the release: the bump commit, the run, what was read back>
+```
+
+Releases up to 2.0.3 predate the rule and carry no review paragraphs.
 
 ## Release History
 

@@ -130,6 +130,16 @@ jobs:
         if: steps.release.outputs.release == 'true'
         run: bun install --frozen-lockfile
 
+      # No release without its two required reviews on record (workspace review-process.md § 0,
+      # letter H35): cmem/release.md's entry for this version names the security review and the
+      # hardening review, each ended by an empty round. A NEW release only: a re-run is the same
+      # commit, already checked.
+      - name: The release's security and hardening reviews are recorded
+        if: steps.release.outputs.state == 'new'
+        run: |
+          bun run reviews:selftest
+          bun run reviews
+
       # The gate is CI's `gates` job, on Bun (the project's runtime since 2026-10-12).
       - name: Gate (types, lint, manifest, surface, fixtures, browser, tests)
         if: steps.release.outputs.release == 'true'

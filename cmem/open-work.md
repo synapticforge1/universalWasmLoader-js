@@ -6,6 +6,14 @@ closed recently with the commit that closed it.
 
 ## Open
 
+- 🔒 **The next release needs a security review and a hardening review first** (owner,
+  2026-11-12, letter H35; [review-process.md](review-process.md)): none has been run under the
+  process yet. One "hardening review" on `v2.0.3..HEAD`, run to its empty round, is both (the
+  tiers nest); its record goes in the new version's entry in [release.md](release.md) before
+  `bun run bump`, which refuses without it. The `publish.yml` step that repeats the check is
+  unmeasured on GitHub until that release.
+- **Efficiency review: no benchmark is committed** (optional; [review-process.md](review-process.md)
+  § 8). The thresholds there (10 % time, 5 % size) are a session's proposal — the owner's to set.
 - **A re-run of the new `publish.yml` has never been needed** (2026-11-10): each job's skip (tag
   at this commit, page there, version served) is tested on mocks and the npm skip ran once under
   the old workflow (2.0.1); JSR's skip has never run on GitHub. Measure it at the first failure.
@@ -43,6 +51,12 @@ closed recently with the commit that closed it.
 
 ## Closed recently (one line each; the record is in the linked file)
 
+- 2026-11-13 — **H35** (the review standard, with its three addenda: "efficiency review", the
+  nesting tiers, one class at a time): the four words in `working-rules.md`, this repo's slots in
+  [review-process.md](review-process.md), and `bump` / `release` / `publish.yml` refusing a version
+  whose `release.md` entry does not record both reviews (`scripts/release-record.ts`, 23-check
+  self-test in CI's gates, 8 mutants caught). Also re-measured for H19 / C36: a blob-level scan of
+  all 104 commits finds no machine path — no purge needed here.
 - 2026-11-10 — **2.0.3 released, the first release in the owner's order** (`15388fd`, run
   42849918410: checks → CI tag → page → JSR ∥ npm, all green; OIDC from a `main` push works for
   both registries) → [release.md](release.md).

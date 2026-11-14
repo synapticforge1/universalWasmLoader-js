@@ -21,7 +21,7 @@ Rules, not lessons (the lessons are [best-practices.md](best-practices.md)). The
 ## The gate
 
 - **The local gate is CI's gate**: the `gates` steps of `.github/workflows/ci.yml` —
-  `bun run check`, `manifest`, `surface --check`, `fixtures`, `compat:selftest`, `release:selftest` (since 2026-11-09), `compat`, `browser`, `test`, `npm:prove`,
+  `bun run check`, `manifest`, `surface --check`, `fixtures`, `compat:selftest`, `release:selftest` (since 2026-11-09), `reviews:selftest` (since 2026-11-13), `compat`, `browser`, `test`, `npm:prove`,
   `lint`, `publish:dry` — plus the `runtimes` matrix (`bun run test:node` with a Node on PATH,
   `test:deno`; `bun run lts` for every Node LTS line). Run on the COMMITTED tree, after the last edit.
 - **Diff the output, not the exit code**: 73 tests on every runtime (2026-11-07; 28 from 2026-10-26, 24 from 2026-10-12); a lower count is a
@@ -95,7 +95,10 @@ Rules, not lessons (the lessons are [best-practices.md](best-practices.md)). The
   `cmem/` note names one (checked 2026-10-26).
 - **Scan before committing memory, binaries included** (`git grep -a`, not `-I`: DWARF in a
   `.wasm` carries build paths). 2026-10-26: no hit at HEAD in text or binary files; H25 measured
-  no drive path in any commit of any ref, so no history purge is needed here.
+  no drive path in any commit of any ref, so no history purge is needed here. Re-measured
+  2026-11-13 at the blob level (loader-jvm found H25's method had missed a tracked binary there,
+  ledger H19 / C36): `git grep -a` over every one of the 104 commits of `git rev-list --all`,
+  and every commit message — 0 hits (a control pattern hits). Still no purge needed.
 - `.claude/settings.local.json` is per-machine and gitignored (2026-10-26, H25 (b)'s lesson).
 
 ## Owner commands: "commit", "push", "release" (owner, 2026-11-10)
@@ -116,3 +119,35 @@ H34). When the owner says:
 
 Each command includes the one before it, and none goes further than its own word (a "commit"
 never pushes, a "push" never releases). This repo's own gate and merge rules apply at each step.
+
+## Owner commands: "review", "security review", "hardening review", "efficiency review"
+
+🔒 Owner, 2026-11-12 / 13 (workspace `cmem/working-rules.md` Tooling rule 13, letter H35). ONE
+process in every project: the workspace's `../../cmem/review-process.md`; this repo's slots are
+[review-process.md](review-process.md). When the owner says:
+
+- **"review"** — a targeted agent code review (workspace § 2), in rounds.
+- **"security review"** — a security review (§ 3, the seven surfaces) AND the "review".
+- **"hardening review"** — a hardening review (§ 4, the seven axes) AND the "security review" AND
+  the "review".
+- **"efficiency review"** — OPTIONAL (§ 8): never required for a release, run only AFTER the
+  security and the hardening review, findings measured, and it never weakens one of their checks.
+
+The rules that bind every one of them:
+
+- **Fresh, read-only reviewers** given the code, never the author's conclusions; 3–4 per round,
+  scopes that do not overlap; findings with a concrete scenario and measured severity (silent
+  wrong output > crash > loud refusal of correct work > cosmetic), each re-verified by a run
+  before anything changes.
+- 🔒 **The tiers nest** (owner, 2026-11-13): each round of a tier briefs reviewers for every layer
+  it includes; the round is empty only when all of them find nothing.
+- 🔒 **One class at a time** (owner, 2026-11-13: "fix one class of error at a time and retest for
+  that class of error then once cleared of that error type move to the next error class"): fix
+  the class, not the instance, with a test that fails without the fix; retest for THAT class with
+  fresh reviewers until a round finds none of it; then the next class.
+- **Rounds until a round finds nothing — then the review stops.** A review never commits, pushes
+  or releases.
+- 🔒 **A security review and a hardening review are required before every release**, each run to
+  its empty round on everything since the last release and recorded in that release's entry in
+  [release.md](release.md) BEFORE the bump. `bun run bump`, `bun run release` and `publish.yml`
+  refuse a version whose entry does not record both (`scripts/release-record.ts`).
