@@ -77,6 +77,28 @@ released 1.1.2: one fetch, `!res.ok` → `wasmImport: HTTP <status> for <url>`, 
 - **Not in the SPEC:** loader-jvm's `LoadOptions` against its own design principle 3 ("no options
   objects") is -jvm's internal exception, confirmed by the owner in -jvm (C36), not a SPEC matter.
 
+## Port readings of 4.0.0, answered 2026-11-13
+
+Four ports wrote "readings for -js to accept or correct" into the workspace's `handoffs.md` on
+2026-11-08 (their notes, indexed by ledger rows C32 -dotnet, C35 -go, C37 -zig, C38 -v). Only
+-go's §11.1 reading had an answer (4.0.1, above). The rest, each judged against SPEC.md's text
+(§ 4 "Typed-call arguments" and "Import wrapper", § 7, § 8, § 11) — no port's code was read or
+run for this, so each "accepted" accepts the READING as the port stated it:
+
+| port | reading | answer |
+| --- | --- | --- |
+| -dotnet (a), -zig (a) | "never coerced" is the EXACT type: an `int` is refused for `f64` and for `s64`; an `i64` is never sent for `s32` even when it fits | **Accepted — the letter.** § 4's Ports column: "the language's 32-bit integer", "the 64-bit integer", "the floating type" |
+| -go (a) | `s32` / `s64` take ANY Go integer kind, range-checked; `f32` / `f64` only floating kinds | **Accepted.** The rule refuses "an argument outside its type's domain": an in-range integer of another integer kind is the same value (as JS's own integer `number`), nothing is coerced, and float ↔ integer stays refused. Exact type (-dotnet, -zig) is stricter, range-checked integers (-go, -js) is the floor; a port must not go below it |
+| -dotnet (c), -go (d) | § 11.4 n/a: the loader reads local files only, so `Load` / `CreateSingleton` / `InstancePool` take no options | **Accepted.** § 11 "applies to every http(s) fetch"; § 7.8 begins "If it fetches over http(s)". As -c |
+| -zig (b) | an untyped integer literal for an `s64` parameter goes as `s32` and is refused (write `@as(i64, 5)`); tested in -zig | **Accepted as a documented port limit**: a loud refusal naming the parameter and type, never a wrong value. ⚠️ It exposes a gap HERE: no fixture has an `s64` or `f32` PARAMETER, so § 8 cannot catch a port that narrows or widens one (open-work) |
+| -v (a) | § 8's string-result-import row can only report the missing callback (-c checks missing callbacks first and the V test passes none); it names `env-mul` before any `.wasm` is read | **Accepted**: the row requires the import named and the load failed before the `.wasm` is fetched, both met. Suggested, not required: pass callbacks in that test (`import_module_with`), so the string-result refusal itself is what fails |
+| -dotnet (b), -go (b) | a callback is checked by its STATIC signature at load; only an `object` / `any` result is checked by value when called. Refused earlier than § 4's "raised when WASM calls the import" | **Open — the owner's ruling.** It meets the rule's purpose (never coerced; the error names the callback, the import and the type) but not the sentence's timing. This session's recommendation: allow it as a clarification in the next SPEC patch (as § 11.1's allowance), no port changes. Until ruled, nothing to correct |
+| -zig (c) vs -v (b), -c | a void accessor on a non-void export: -zig's `call(void, …)` REFUSES it; -c's `uwl_call_void` and -v's `call_void` DISCARD the result | **Open — the owner's ruling.** § 4: an accessor "MUST also refuse a kind that does not match the export's WIT result, never return a zero or empty value" — by the letter -zig is right; by the purpose, discarding returns no wrong value (JS callers discard results freely). Two ports diverge under one sentence, so the sentence needs one more clause either way. Recommendation: say that discarding is allowed and refusing is allowed, in the same SPEC patch |
+
+-v (c) (the `uwl_str` leak does not apply to -v) and -dotnet's `HostFault` note need no answer.
+Nothing in SPEC.md was changed for this: both open rows would be a 4.0.2 clarification, which
+is the owner's to decide.
+
 ## Edges left
 
 - UNMEASURED: a void WIT import (no fixture has one; the path is one `return undefined`).

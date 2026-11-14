@@ -8,7 +8,9 @@
  * Guards, in order (any one refuses, nothing is pushed):
  *   1. the tree is clean, untracked files included;
  *   2. the branch is `main`, and HEAD is exactly one commit — `bump to v<jsr.json version>`, which
- *      changes `jsr.json` only — on top of `origin/main` (fetched first);
+ *      changes `jsr.json` only — on top of `origin/main` (fetched first); and `cmem/release.md`
+ *      records the version's security review and hardening review, each ended by an empty round
+ *      (`release-record.ts`, letter H35);
  *   3. the tag `v<version>` exists neither here nor on `origin`;
  *   4. neither registry has the version: JSR answers 404, and npm's package document has never had
  *      it (its `time` keeps removed numbers too — ledger C34);
@@ -28,6 +30,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { NPM_NAME } from "./npm/build.ts";
+import { reviewProblemsHere } from "./release-record.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const dryRun = process.argv.includes("--dry-run");
@@ -74,6 +77,10 @@ const subject = git("log", "-1", "--format=%s").stdout.trim();
 if (subject !== `bump to ${tag}`) refuse(`HEAD is "${subject}", not the bump commit "bump to ${tag}" (run bun run bump <level>)`);
 const changed = git("diff", "--name-only", "HEAD^", "HEAD").stdout.trim();
 if (changed !== "jsr.json") refuse(`the bump commit changes more than jsr.json: ${changed.split("\n").join(", ")}`);
+
+// 2b. The release's two required reviews are on record (letter H35).
+const unreviewed = reviewProblemsHere(version);
+if (unreviewed.length > 0) refuse(`${version} is not ready (workspace review-process.md § 0):\n   ${unreviewed.join("\n   ")}`);
 
 // 3. The tag is new, here and on GitHub.
 if (git("rev-parse", "-q", "--verify", `refs/tags/${tag}`).status === 0) refuse(`tag ${tag} already exists locally`);

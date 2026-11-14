@@ -265,9 +265,13 @@ then publishes to JSR and npm in parallel, with OIDC provenance on both (npm thr
 publishing) — no stored token. The jobs that hold the publishing credential run only tools pinned
 by version and sha256.
 
+Every release is preceded by a security review and a hardening review of everything since the
+previous release, each repeated until a round of reviewers finds nothing, and recorded in the
+release's entry in `cmem/release.md`; the tooling and CI refuse a version without that record.
+
 To release a new version: `bun run bump patch|minor|major` (the level is required; it checks the
-API floor, raises `version` in `jsr.json` and commits `bump to vX.Y.Z`), then `bun run release`
-(it checks, then pushes `main` — no tag; CI does the rest).
+review record and the API floor, raises `version` in `jsr.json` and commits `bump to vX.Y.Z`), then
+`bun run release` (it checks, then pushes `main` — no tag; CI does the rest).
 
 ## Development
 

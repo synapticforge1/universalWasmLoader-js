@@ -12,7 +12,10 @@
  * GATED: it refuses a tree with any change or untracked file (the bump is its own commit, U2 / U3);
  * then it runs `compat.ts` against the last release tag (letter H6) and REFUSES when the bump is
  * below the surface floor, when a patch/minor meets red previous-tag tests, or when
- * `api-surface.json` is stale. `bun run release` then pushes `main`; CI tags and publishes.
+ * `api-surface.json` is stale; and it REFUSES when `cmem/release.md` has no entry for the new
+ * version recording its security review and its hardening review, each ended by an empty round
+ * (`release-record.ts`; workspace `review-process.md`, letter H35). Nothing is written on a
+ * refusal. `bun run release` then pushes `main`; CI tags and publishes.
  *
  * Written on `node:` builtins only, so it runs on Bun, Node and Deno alike.
  */
@@ -21,6 +24,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { judge, lastTag } from "./compat.ts";
+import { reviewProblemsHere } from "./release-record.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const manifestPath = fileURLToPath(new URL("../jsr.json", import.meta.url));
@@ -65,6 +69,13 @@ if (kind === "major") {
   patch += 1;
 }
 const to = `${major}.${minor}.${patch}`;
+
+// The two required reviews are recorded in the release's entry BEFORE the bump (letter H35).
+const unreviewed = reviewProblemsHere(to);
+if (unreviewed.length > 0) {
+  console.error(["", `❌ bump ${kind} refused: ${to} is not ready for release (workspace review-process.md § 0):`, ...unreviewed.map((p) => `  ${p}`)].join("\n"));
+  process.exit(1);
+}
 
 // Targeted replace so the rest of jsr.json's formatting is untouched.
 const updated = text.replace(/("version"\s*:\s*)"\d+\.\d+\.\d+"/, `$1"${to}"`);

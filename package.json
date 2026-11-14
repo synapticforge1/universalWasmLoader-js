@@ -13,6 +13,8 @@
     "compat": "bun scripts/compat.ts",
     "compat:selftest": "bun scripts/check-compat-gate.ts",
     "release:selftest": "bun scripts/check-github-release.ts",
+    "reviews": "bun scripts/release-record.ts",
+    "reviews:selftest": "bun scripts/check-release-record.ts",
     "lint": "biome lint",
     "fixtures": "bun scripts/check-fixtures.ts",
     "gate": "bun run check && bun run lint && bun run manifest && bun run surface --check && bun run fixtures && bun run browser && bun run test",
